@@ -25,15 +25,70 @@ MONTHS = ("january|february|march|april|may|june|july|august|september|october|n
 
 NUM_RE = re.compile(
     r"(?P<cur>₹|rs\.?|inr)?\s*(?P<num>\d{1,3}(?:,\d{2,3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*"
-    r"(?P<suf>lakhs?|lacs?|crores?|k\b|%|percent|per cent)?",
+    r"(?P<suf>lakhs?|lacs?|crores?|thousand|k\b|%|percent|per cent)?",
     re.IGNORECASE)
-_WORDS = "|".join([*UNITS, *TENS, *SCALES, "and", "point"])
-WORD_SEQ_RE = re.compile(rf"\b(?:(?:{_WORDS})[\s-]*)+", re.IGNORECASE)
+# Longest alternatives first and a word boundary after each: otherwise "eight" wins
+# inside "eighty" and "eighty seven thousand" is read as 7,000.
+_WORDS = "|".join(sorted([*UNITS, *TENS, *SCALES, "and", "point"], key=len, reverse=True))
+WORD_SEQ_RE = re.compile(rf"\b(?:(?:{_WORDS})\b[\s-]*)+", re.IGNORECASE)
 DATE_RE = re.compile(rf"\b\d{{1,2}}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{MONTHS})\b(?:,?\s+\d{{4}})?|"
                      rf"\b(?:{MONTHS})\s+\d{{1,2}}(?:st|nd|rd|th)?\b(?:,?\s+\d{{4}})?|\b\d{{4}}-\d{{2}}-\d{{2}}\b|"
                      rf"\b(?:{MONTHS})\s+\d{{4}}\b", re.IGNORECASE)
 ID_RE = re.compile(r"\b[A-Z]{1,5}-[A-Z0-9-]+\b")
 COUNT_UNIT_RE = re.compile(r"^\s*(months?|emis?|instal(?:l)?ments?|days?|years?|payments?|debits?)\b", re.IGNORECASE)
+
+
+# ---- Hindi and Hinglish -------------------------------------------------------
+# Replies and transcripts in Hindi carry the same numbers in other clothes: Devanagari
+# digits (१७,३२३), Hindi scale and unit words (हज़ार, लाख, करोड़, रुपये, महीने) and
+# number words (सत्तासी हज़ार). They are rewritten to the English forms the parser
+# below already understands. Hindi cardinals 1-99 are irregular words, so all 99
+# standard forms are listed; uncommon spelling variants may still be missed.
+DEVANAGARI_DIGITS = str.maketrans("०१२३४५६७८९", "0123456789")
+HINDI_WORDS = {
+    "हज़ार": "thousand", "हजार": "thousand", "लाख": "lakh", "करोड़": "crore", "करोड": "crore", "सौ": "hundred",
+    "रुपये": "rupees", "रुपए": "rupees", "रुपया": "rupees", "रुपयों": "rupees", "प्रतिशत": "percent",
+    "महीने": "months", "महीनों": "months", "महीना": "months", "किस्तें": "EMIs", "किस्तों": "EMIs", "किस्त": "EMIs",
+    "दिन": "days", "साल": "years",
+}
+_HINDI_1_99 = (
+    "एक दो तीन चार पांच छह सात आठ नौ दस ग्यारह बारह तेरह चौदह पंद्रह सोलह सत्रह अठारह उन्नीस बीस "
+    "इक्कीस बाईस तेईस चौबीस पच्चीस छब्बीस सत्ताईस अट्ठाईस उनतीस तीस इकतीस बत्तीस तैंतीस चौंतीस पैंतीस "
+    "छत्तीस सैंतीस अड़तीस उनतालीस चालीस इकतालीस बयालीस तैंतालीस चवालीस पैंतालीस छियालीस सैंतालीस "
+    "अड़तालीस उनचास पचास इक्यावन बावन तिरपन चौवन पचपन छप्पन सत्तावन अट्ठावन उनसठ साठ इकसठ बासठ तिरसठ "
+    "चौंसठ पैंसठ छियासठ सड़सठ अड़सठ उनहत्तर सत्तर इकहत्तर बहत्तर तिहत्तर चौहत्तर पचहत्तर छिहत्तर सतहत्तर "
+    "अठहत्तर उन्यासी अस्सी इक्यासी बयासी तिरासी चौरासी पचासी छियासी सत्तासी अट्ठासी नवासी नब्बे इक्यानवे "
+    "बानवे तिरानवे चौरानवे पंचानवे छियानवे सत्तानवे अट्ठानवे निन्यानवे").split()
+_EN_UNITS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
+             "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
+_EN_TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+
+
+def _english(n: int) -> str:
+    return _EN_UNITS[n] if n < 20 else _EN_TENS[n // 10] + (" " + _EN_UNITS[n % 10] if n % 10 else "")
+
+
+assert len(_HINDI_1_99) == 99
+HINDI_WORDS.update({w: _english(i + 1) for i, w in enumerate(_HINDI_1_99)})
+HINDI_WORDS.update({"पाँच": "five", "छः": "six"})      # common spelling variants
+HINGLISH_WORDS = {
+    "hazaar": "thousand", "hazar": "thousand", "hajar": "thousand", "karod": "crore", "karor": "crore",
+    "rupaye": "rupees", "rupaiye": "rupees", "rupay": "rupees", "pratishat": "percent", "mahine": "months",
+    "mahina": "months", "kisht": "EMIs", "kishtein": "EMIs", "sau": "hundred",
+    "ek": "one", "teen": "three", "chaar": "four", "char": "four", "paanch": "five", "panch": "five",
+    "chhah": "six", "aath": "eight", "nau": "nine", "das": "ten", "bees": "twenty", "pachchis": "twenty five",
+    "tees": "thirty", "chalis": "forty", "pachas": "fifty", "pachaas": "fifty", "sattar": "seventy",
+    "assi": "eighty", "nabbe": "ninety",
+}
+_DEV_RE = re.compile("(?<![ऀ-ॿ])(" + "|".join(sorted(map(re.escape, HINDI_WORDS), key=len, reverse=True))
+                     + ")(?![ऀ-ॿ])")
+_HINGLISH_RE = re.compile(r"\b(" + "|".join(sorted(HINGLISH_WORDS, key=len, reverse=True)) + r")\b", re.IGNORECASE)
+
+
+def normalise_indic(text: str) -> str:
+    text = (text or "").translate(DEVANAGARI_DIGITS)
+    text = _DEV_RE.sub(lambda m: " " + HINDI_WORDS[m.group(1)] + " ", text)
+    return _HINGLISH_RE.sub(lambda m: " " + HINGLISH_WORDS[m.group(1).lower()] + " ", text)
 
 
 def words_to_number(text: str) -> Decimal | None:
@@ -76,14 +131,14 @@ def _to_decimal(num: str, suf: str | None) -> Decimal | None:
         v *= 100_000
     elif s.startswith("crore"):
         v *= 10_000_000
-    elif s == "k":
+    elif s in ("k", "thousand"):
         v *= 1000
     return v
 
 
 def extract_numbers(text: str, material_only: bool = True) -> list[tuple[Decimal, str]]:
-    """Return (value, snippet) for each number in free text."""
-    text = DATE_RE.sub(" ", text or "")
+    """Return (value, snippet) for each number in free text (English, Hindi or Hinglish)."""
+    text = DATE_RE.sub(" ", normalise_indic(text))
     text = ID_RE.sub(" ", text)
     out = []
     for m in NUM_RE.finditer(text):
@@ -92,7 +147,7 @@ def extract_numbers(text: str, material_only: bool = True) -> list[tuple[Decimal
             continue
         after = text[m.end():m.end() + 20]
         is_money = bool(m.group("cur")) or bool(re.match(r"\s*(rupees|rs\b)", after, re.I)) or \
-            (m.group("suf") or "").lower().startswith(("lakh", "lac", "crore", "k"))
+            (m.group("suf") or "").lower().startswith(("lakh", "lac", "crore", "k", "thousand"))
         is_pct = (m.group("suf") or "").lower() in ("%", "percent", "per cent")
         is_count = bool(COUNT_UNIT_RE.match(after))
         is_year = not is_money and not is_pct and v == v.to_integral() and 1900 <= v <= 2100

@@ -1,0 +1,11 @@
+{
+  "name": "lf_http_5xx",
+  "description": "HTTP responses with status 5xx",
+  "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"ledgerflow-ai\" AND jsonPayload.message=\"request\" AND jsonPayload.status>=500",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "labels": []
+  }
+}

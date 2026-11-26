@@ -48,11 +48,14 @@ class Metrics:
 METRICS = Metrics()
 
 
-def mark_engaged(memory: dict) -> None:
-    """Count a conversation once, at the customer's first turn (denominator of containment)."""
+def mark_engaged(memory: dict, channel: str = "text") -> None:
+    """Count a conversation once, at the customer's first turn (denominator of containment).
+    Also logged, so Cloud Monitoring counts it durably across instances."""
     if not memory.get("engaged"):
         memory["engaged"] = True
         METRICS.incr("kpi.sessions_engaged")
+        from ledgerflow.platform import logs
+        logs.event(logs.get("ledgerflow.kpi"), "conversation engaged", channel=channel)
 
 
 def kpis() -> dict:

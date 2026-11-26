@@ -21,6 +21,10 @@ tools:
   - get_card_transactions
   - propose_card_dispute
 actions: [service_request, card_dispute]
+greeting_hi: "नमस्ते, LedgerFlow Finance कार्ड्स में आपका स्वागत है। मैं Aria हूँ।"
+suggestions_hi:
+  - "मेरा स्टेटमेंट बैलेंस और मिनिमम ड्यू कितना है?"
+  - "Croma pe do baar charge hua hai, check karo"
 suggestions:
   - "What's my statement balance and minimum due?"
   - "I think I was charged twice at Croma. Can you check?"

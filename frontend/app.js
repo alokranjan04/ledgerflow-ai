@@ -61,7 +61,7 @@ $('#login-form').onsubmit = async (e) => {
     phone: $('#login-phone').value, dob: $('#login-dob').value, workflow: state.cfg.default_workflow }) });
   if (!res.ok) { $('#login-error').textContent = res.error || 'Verification failed'; return; }
   // The session ID lives only in an HttpOnly cookie; the page keeps display state.
-  state.session = { name: res.customer_name, workflow: res.workflow };
+  state.session = { name: res.customer_name, workflow: res.workflow, language: res.language || 'auto' };
   sessionStorage.setItem('lf_session', JSON.stringify(state.session));
   enterApp();
 };
@@ -80,11 +80,28 @@ $('#logout').onclick = logout;
 function enterApp() {
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#customer-name').textContent = state.session.name;
-  renderWorkflowSwitch(); connectChat(); loadAccount(); loadActivity(); loadFaults(); loadMetrics();
+  renderLanguagePicker(); renderWorkflowSwitch(); connectChat(); loadAccount(); loadActivity(); loadFaults(); loadMetrics();
   if (!$('#messages').children.length) {
     sys(`Signed in as ${state.session.name}. Identity verified.`);
-    addMsg('assistant', `Hi ${state.session.name.split(' ')[0]}, I'm Aria. Ask me anything about your account — type, or tap the mic to talk.`);
+    const first = state.session.name.split(' ')[0];
+    addMsg('assistant', isHindi()
+      ? `नमस्ते ${first}, मैं Aria हूँ। अपने खाते के बारे में कुछ भी पूछिए — लिखकर, या माइक दबाकर बोलकर।`
+      : `Hi ${first}, I'm Aria. Ask me anything about your account — type, or tap the mic to talk. You can also write in Hindi or Hinglish.`);
   }
+}
+
+// ------------------------------------------------------------------ language
+const isHindi = () => ['hi', 'hi-Latn'].includes(state.session?.language);
+function renderLanguagePicker() {
+  const sel = $('#lang');
+  sel.innerHTML = state.cfg.languages.map((l) => `<option value="${esc(l.code)}" ${l.code === (state.session.language || 'auto') ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
+  sel.onchange = async () => {
+    const r = await api('/api/language', { method: 'POST', body: JSON.stringify({ language: sel.value }) });
+    if (!r.ok) return;
+    state.session.language = r.language; sessionStorage.setItem('lf_session', JSON.stringify(state.session));
+    renderWorkflowSwitch();
+    sys(r.language === 'auto' ? 'Language: automatic (follows how you write).' : `Language set to ${sel.options[sel.selectedIndex].text}. Voice uses it too.`);
+  };
 }
 
 // ------------------------------------------------------------------ workflows
@@ -103,7 +120,8 @@ function renderWorkflowSwitch() {
     }
   };
   const wf = state.cfg.workflows.find((w) => w.id === state.session.workflow);
-  $('#suggestions').innerHTML = (wf?.suggestions || []).map((s) => `<button>${esc(s)}</button>`).join('');
+  const sugg = isHindi() && wf?.suggestions_hi?.length ? wf.suggestions_hi : (wf?.suggestions || []);
+  $('#suggestions').innerHTML = sugg.map((s) => `<button>${esc(s)}</button>`).join('');
   $('#suggestions').onclick = (e) => { const b = e.target.closest('button'); if (b) send(b.textContent); };
 }
 
@@ -395,6 +413,7 @@ function renderTrace(ev) {
 }
 async function loadMetrics() {
   const m = await api('/api/metrics');
+  if (m.error) { $('#metrics').innerHTML = '<div class="muted">Metrics need the admin token: open the app with ?admin=&lt;token&gt;.</div>'; return; }
   const rows = Object.entries(m.latency_ms).filter(([k]) => /^(turn|llm|voice|connector|tool)\./.test(k))
     .sort(([a], [b]) => a.localeCompare(b));
   $('#metrics').innerHTML = (rows.length ? rows.map(([k, v]) => `<div class="metric-row"><span title="${esc(k)}">${esc(k)} <span class="muted">n=${v.n}</span></span><span>${v.p50}</span><span>${v.p95}</span></div>`).join('')

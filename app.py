@@ -36,6 +36,7 @@ from ledgerflow.platform.actions import ActionService, AuditLog
 from ledgerflow.platform.connectors import DEFAULT_POLICIES, ConnectorError, ConnectorRegistry
 from ledgerflow.platform.gcp_auth import IdTokenProvider
 from ledgerflow.platform.gemini_text import GeminiREST, TextAgent
+from ledgerflow.platform.language import LANGUAGES
 from ledgerflow.platform.state import build_state
 from ledgerflow.platform.stepup import DemoSms, StepUp
 from ledgerflow.platform.telemetry import METRICS, Trace, kpis
@@ -150,11 +151,12 @@ async def api_config(request):
     return web.json_response({
         "as_of": config.AS_OF.isoformat(),
         "workflows": [{"id": w.id, "name": w.name, "description": w.description, "panels": w.panels,
-                       "suggestions": w.suggestions}
+                       "suggestions": w.suggestions, "suggestions_hi": w.suggestions_hi}
                       for w in sorted(wfs.values(), key=lambda w: w.id != config.DEFAULT_WORKFLOW)],
         "default_workflow": config.DEFAULT_WORKFLOW,
         "demo_customers": DEMO_CUSTOMERS,
         "voice_enabled": bool(config.GEMINI_API_KEY),
+        "languages": [{"code": "auto", "name": "Auto"}] + [{"code": k, "name": v} for k, v in LANGUAGES.items()],
     })
 
 
@@ -179,7 +181,11 @@ async def api_login(request):
     await request.app["sessions"].save(s)
     METRICS.incr("auth.login_ok")
     logs.event(log, "login verified", session=logs.session_hash(s.id), customer=s.customer_id)
-    resp = web.json_response({"ok": True, "customer_name": s.customer_name, "workflow": s.workflow_id})
+    if body.get("language") in LANGUAGES:
+        s.language = body["language"]
+        await request.app["sessions"].save(s)
+    resp = web.json_response({"ok": True, "customer_name": s.customer_name, "workflow": s.workflow_id,
+                              "language": s.language})
     resp.set_cookie(COOKIE, s.id, httponly=True, secure=_is_https(request), samesite="Strict", path="/",
                     max_age=config.SESSION_TTL_SECS)
     return resp
@@ -211,6 +217,18 @@ async def api_workflow(request):
                          {"role": "model", "parts": [{"text": "Understood, I have the context."}]}]
         await request.app["sessions"].save(s)
     return web.json_response({"ok": True, "workflow": s.workflow_id})
+
+
+async def api_language(request):
+    """Set the conversation language explicitly (the UI toggle); 'auto' re-enables detection."""
+    s = await _session(request)
+    body = await request.json()
+    code = str(body.get("language", ""))
+    if code not in LANGUAGES and code != "auto":
+        return web.json_response({"ok": False, "error": "unsupported language"}, status=400)
+    s.language = code
+    await request.app["sessions"].save(s)
+    return web.json_response({"ok": True, "language": s.language})
 
 
 async def _direct_tool(request, s, name: str):
@@ -372,6 +390,8 @@ def _save_recording(recorder, s) -> None:
 
 # ------------------------------------------------------------------ ops
 async def api_metrics(request):
+    if not admin_ok(request):      # business volumes and KPIs are not public on a deployed service
+        raise web.HTTPForbidden(text=json.dumps({"error": "admin token required"}), content_type="application/json")
     out = METRICS.summary()
     out["breakers"] = request.app["connectors"].health()
     out["llm_breakers"] = {m: b.state for m, b in request.app["llm"].breakers.items()}
@@ -423,6 +443,10 @@ async def api_faults(request):
             return web.json_response({"error": f"systems service: {e.kind}"}, status=502)
     return web.json_response({"profiles": profiles, "breakers": request.app["connectors"].health(),
                               "admin": admin_ok(request)})
+
+
+async def dashboard_page(request):
+    return web.FileResponse(STATIC / "dashboard.html", headers={"Cache-Control": "no-cache"})
 
 
 # ------------------------------------------------------------------ agent desk (hand-offs)
@@ -576,6 +600,7 @@ def make_app() -> web.Application:
     r.add_post("/api/login", api_login)
     r.add_post("/api/logout", api_logout)
     r.add_post("/api/workflow", api_workflow)
+    r.add_post("/api/language", api_language)
     r.add_get("/api/account", api_account)
     r.add_get("/api/activity", api_activity)
     r.add_get("/api/metrics", api_metrics)
@@ -587,6 +612,7 @@ def make_app() -> web.Application:
     r.add_post("/answer", answer)
     r.add_get("/stream", stream)
     r.add_get("/agent", agent_page)
+    r.add_get("/dashboard", dashboard_page)
     r.add_get("/api/agent/queue", api_agent_queue)
     r.add_post("/api/agent/accept", api_agent_accept)
     r.add_get("/healthz", healthz)

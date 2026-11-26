@@ -142,9 +142,12 @@ class VoiceConversation:
     def setup_message(self) -> dict:
         context = self.session.recent_transcript() if self.session.transcript else ""
         system = self.wf.system_prompt(self.tr.mode, self.session.customer_name, self.session.verified,
-                                       context=context, as_of=config.AS_OF.isoformat())
+                                       context=context, as_of=config.AS_OF.isoformat(),
+                                       language=self.session.language)
         if self.tr.mode == "phone":
-            system += ("\n\nPHONE CALL: When you receive [CALL_STARTED], greet the caller: " + self.wf.greeting +
+            greet = self.wf.greeting + (" " + self.wf.greeting_hi if self.wf.greeting_hi else "")
+            system += ("\n\nPHONE CALL: When you receive [CALL_STARTED], greet the caller in English and Hindi: " + greet +
+                       " Ask whether they prefer English or Hindi, then continue only in that language."
                        " Then ask for their date of birth to verify identity. The caller's number is "
                        + ("known." if self.session.phone else "unknown, so also ask for the registered mobile number.")
                        + " When the caller is done, say goodbye and call end_call.")
@@ -228,7 +231,7 @@ class VoiceConversation:
                 if not self.user_turn_open:
                     self.user_turn_open = True
                     self.session.user_turn_seq += 1      # a new customer turn (gates confirm_action)
-                    mark_engaged(self.session.memory)
+                    mark_engaged(self.session.memory, self.tr.mode)
                     self.trace = Trace()
                 self.heard_buf += heard
                 self.last_user_speech = time.perf_counter()

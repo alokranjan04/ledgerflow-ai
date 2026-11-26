@@ -339,6 +339,75 @@
   ],
   "outcome": "passed"
  },
+ "tests/test_language_kpi.py::test_language_detection": {
+  "reqs": [
+   "REQ-LNG-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_prompt_language_block_keeps_figures_and_locks_voice": {
+  "reqs": [
+   "REQ-LNG-001.2",
+   "REQ-LNG-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_grounding_understands_hindi_and_hinglish_numbers": {
+  "reqs": [
+   "REQ-LNG-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_english_compound_number_words_regression": {
+  "reqs": [
+   "REQ-LNG-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_first_hindi_turn_locks_the_session_language": {
+  "reqs": [
+   "REQ-LNG-001.1",
+   "REQ-LNG-001.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_system_messages_follow_the_language": {
+  "reqs": [
+   "REQ-LNG-001.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_phone_greets_bilingually_and_voice_uses_session_language": {
+  "reqs": [
+   "REQ-LNG-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_language_api_and_hindi_suggestions": {
+  "reqs": [
+   "REQ-LNG-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_dashboard_page_and_metrics_are_admin_only_when_deployed": {
+  "reqs": [
+   "REQ-KPI-001.1",
+   "REQ-KPI-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_engagement_is_logged_once_per_conversation": {
+  "reqs": [
+   "REQ-KPI-001.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_log_based_metrics_match_what_the_code_logs": {
+  "reqs": [
+   "REQ-KPI-001.4"
+  ],
+  "outcome": "passed"
+ },
  "tests/test_ops.py::test_llm_falls_back_to_second_model_and_breaker_skips_dead_primary": {
   "reqs": [
    "REQ-OPS-001.1"

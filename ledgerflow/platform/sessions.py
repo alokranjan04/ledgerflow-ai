@@ -39,6 +39,7 @@ class Session:
     completed_actions: dict = field(default_factory=dict)
     user_turn_seq: int = 0                                   # increments on every customer turn
     memory: dict = field(default_factory=dict)              # entity memory, e.g. last listed payments
+    language: str = "auto"                                    # auto | en | hi | hi-Latn; sticky once detected
 
     def add_transcript(self, role: str, text: str, mode: str) -> None:
         text = (text or "").strip()

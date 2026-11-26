@@ -1,0 +1,19 @@
+{
+  "name": "lf_actions_executed",
+  "description": "Service requests executed after confirmation (and step-up)",
+  "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"ledgerflow-ai\" AND jsonPayload.message=\"audit\" AND jsonPayload.audit_event=\"executed\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "labels": [
+      {
+        "key": "action",
+        "valueType": "STRING"
+      }
+    ]
+  },
+  "labelExtractors": {
+    "action": "EXTRACT(jsonPayload.action)"
+  }
+}

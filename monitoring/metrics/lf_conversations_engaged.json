@@ -1,0 +1,19 @@
+{
+  "name": "lf_conversations_engaged",
+  "description": "Conversations with at least one customer turn (containment denominator)",
+  "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"ledgerflow-ai\" AND jsonPayload.message=\"conversation engaged\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "labels": [
+      {
+        "key": "channel",
+        "valueType": "STRING"
+      }
+    ]
+  },
+  "labelExtractors": {
+    "channel": "EXTRACT(jsonPayload.channel)"
+  }
+}

@@ -30,6 +30,12 @@ tools:
   - propose_foreclosure_statement
   - propose_prepayment_request
 actions: [service_request, payment_dispute, foreclosure_statement, prepayment_request]
+greeting_hi: "नमस्ते, LedgerFlow Finance में आपका स्वागत है। मैं Aria हूँ।"
+suggestions_hi:
+  - "मेरी EMI इस महीने क्यों बढ़ गई? और अगर मैं आज ₹50,000 प्रीपे करूँ तो कितना ब्याज बचेगा?"
+  - "पिछले छह महीनों में कौन से पेमेंट फेल हुए, और क्यों?"
+  - "क्या मैं बिना पेनल्टी के लोन बंद कर सकता हूँ?"
+  - "Meri agli EMI kab hai aur kitni hai?"
 suggestions:
   - "My EMI increased this month. Why? And if I prepay ₹50,000 today, how much interest would I save?"
   - "Show me the payments that failed in the last six months and explain what happened."

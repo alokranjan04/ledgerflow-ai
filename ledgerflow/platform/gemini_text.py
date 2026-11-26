@@ -15,6 +15,7 @@ from collections.abc import Awaitable, Callable
 import aiohttp
 
 from ledgerflow import config
+from ledgerflow.platform import language as lang
 from ledgerflow.platform import logs
 from ledgerflow.platform.connectors import Breaker
 from ledgerflow.platform.grounding import Grounder
@@ -115,8 +116,31 @@ def _trim(history: list[dict]) -> list[dict]:
     return history[cut:]
 
 
-def _fallback(results: list[dict]) -> str:
-    lines = ["I want to be exact, so here are the figures straight from your account:"]
+MESSAGES = {
+    "fallback_intro": {"en": "I want to be exact, so here are the figures straight from your account:",
+                       "hi": "सही जानकारी के लिए, ये आँकड़े सीधे आपके खाते से हैं:",
+                       "hi-Latn": "Bilkul sahi jaankari ke liye, ye figures seedhe aapke account se hain:"},
+    "budget": {"en": "This is taking longer than it should, so I've stopped rather than keep you waiting. "
+                     "Please ask again, or I can raise a service request for you.",
+               "hi": "इसमें सामान्य से ज़्यादा समय लग रहा है, इसलिए मैंने रोक दिया है। कृपया दोबारा पूछें, "
+                     "या मैं आपके लिए सर्विस रिक्वेस्ट बना सकती हूँ।",
+               "hi-Latn": "Isme zyada time lag raha hai, isliye maine rok diya hai. Please dobara poochiye, "
+                          "ya main aapke liye service request bana sakti hoon."},
+    "llm_down": {"en": "Sorry, I'm having trouble reaching my language service right now. Your account data is "
+                       "safe; please try again in a moment.",
+                 "hi": "माफ़ कीजिए, अभी मेरी भाषा सेवा से संपर्क नहीं हो पा रहा है। आपका खाता सुरक्षित है; "
+                       "कृपया थोड़ी देर में फिर कोशिश करें।",
+                 "hi-Latn": "Maaf kijiye, abhi meri language service se connect nahi ho pa raha. Aapka account "
+                            "surakshit hai; thodi der mein phir try kijiye."},
+}
+
+
+def msg(key: str, language: str) -> str:
+    return MESSAGES[key].get(language, MESSAGES[key]["en"])
+
+
+def _fallback(results: list[dict], language: str = "en") -> str:
+    lines = [msg("fallback_intro", language)]
     for r in results[-2:]:
         for k, v in r.items():
             if isinstance(v, (str, int, float)) and k not in ("ok", "note", "next_step", "clause_text", "assumption"):
@@ -134,6 +158,8 @@ class TextAgent:
         t0 = time.perf_counter()
         session.user_turn_seq += 1
         mark_engaged(session.memory)
+        if session.language == "auto" and lang.detect(text) != "en":
+            session.language = lang.detect(text)        # lock on the first non-English turn
         turn_token = logs.bind(turn=session.user_turn_seq, channel="text", workflow=wf.id)
         session.add_transcript("user", text, "text")
         session.history.append({"role": "user", "parts": [{"text": text}]})
@@ -148,7 +174,8 @@ class TextAgent:
             nonlocal grounding
             reply = ""
             for _ in range(MAX_TOOL_ROUNDS + 1):
-                system = wf.system_prompt("text", session.customer_name, session.verified, as_of=config.AS_OF.isoformat())
+                system = wf.system_prompt("text", session.customer_name, session.verified, as_of=config.AS_OF.isoformat(),
+                                         language=session.language)
                 with trace.span("llm", metric="llm.text.call"):
                     content = await self.llm.generate(system, contents, REGISTRY.declarations(wf.tools))
                 calls = [p["functionCall"] for p in content.get("parts", []) if "functionCall" in p]
@@ -183,13 +210,14 @@ class TextAgent:
                             "Rewrite the answer using only values returned by tools; call a tool if you need a number.")
                 retry = contents + [{"role": "model", "parts": [{"text": reply}]},
                                     {"role": "user", "parts": [{"text": feedback}]}]
-                system = wf.system_prompt("text", session.customer_name, session.verified, as_of=config.AS_OF.isoformat())
+                system = wf.system_prompt("text", session.customer_name, session.verified, as_of=config.AS_OF.isoformat(),
+                                         language=session.language)
                 with trace.span("llm regenerate", metric="llm.text.call"):
                     reply = _text(await self.llm.generate(system, retry, None))
                 if GROUNDER.check(reply, tool_results, user_texts):
                     grounding = "fallback"
                     METRICS.incr("grounding.fallback")
-                    reply = _fallback(tool_results)
+                    reply = _fallback(tool_results, session.language)
             METRICS.incr("grounding.checked")
             return reply
 
@@ -199,14 +227,12 @@ class TextAgent:
         except TimeoutError:
             METRICS.incr("turn.text.budget_exceeded")
             outcome = "budget_exceeded"
-            reply = ("This is taking longer than it should, so I've stopped rather than keep you waiting. "
-                     "Please ask again, or I can raise a service request for you.")
+            reply = msg("budget", session.language)
             trace.mark("turn budget exceeded", config.LLM_TURN_BUDGET_S * 1000, ok=False)
         except Exception as e:  # LLM outage: say so, keep the session usable
             METRICS.incr("llm.text.error")
             outcome = "llm_unavailable"
-            reply = ("Sorry, I'm having trouble reaching my language service right now. Your account data is safe; "
-                     "please try again in a moment.")
+            reply = msg("llm_down", session.language)
             trace.mark("llm error", 0, ok=False, detail=str(e)[:120])
         total = (time.perf_counter() - t0) * 1000
         METRICS.observe("turn.text.total", total)

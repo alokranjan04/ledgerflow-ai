@@ -13,6 +13,7 @@ from pathlib import Path
 import yaml
 
 from ledgerflow.config import ROOT
+from ledgerflow.platform import language as lang
 
 WORKFLOW_DIR = ROOT / "workflows"
 
@@ -47,10 +48,13 @@ class Workflow:
     voice: str = "Aoede"
     greeting: str = ""
     suggestions: list[str] = field(default_factory=list)
+    greeting_hi: str = ""
+    suggestions_hi: list[str] = field(default_factory=list)
 
     def system_prompt(self, mode: str, customer_name: str = "", verified: bool = False,
-                      context: str = "", as_of: str = "") -> str:
-        parts = [self.prompt.strip(), COMMON_VOICE if mode in ("voice", "phone") else COMMON_TEXT]
+                      context: str = "", as_of: str = "", language: str = "auto") -> str:
+        parts = [self.prompt.strip(), COMMON_VOICE if mode in ("voice", "phone") else COMMON_TEXT,
+                 lang.instruction(language, mode)]
         if as_of:
             parts.append(f"Today's date is {as_of}.")
         if verified:
@@ -72,6 +76,7 @@ def load_workflows(directory: Path = WORKFLOW_DIR) -> dict[str, Workflow]:
         wf = Workflow(id=spec["id"], name=spec["name"], description=spec.get("description", ""), prompt=prompt,
                       tools=list(spec["tools"]), actions=list(spec.get("actions", [])),
                       panels=list(spec.get("panels", [])), voice=spec.get("voice", "Aoede"),
-                      greeting=spec.get("greeting", ""), suggestions=list(spec.get("suggestions", [])))
+                      greeting=spec.get("greeting", ""), suggestions=list(spec.get("suggestions", [])),
+                      greeting_hi=spec.get("greeting_hi", ""), suggestions_hi=list(spec.get("suggestions_hi", [])))
         out[wf.id] = wf
     return out

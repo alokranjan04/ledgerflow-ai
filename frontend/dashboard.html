@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LedgerFlow AI — KPI dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true"></span>LedgerFlow <span class="brand-ai">AI</span> · KPI dashboard</div>
+    <div class="topbar-right"><span id="updated" class="muted"></span><button id="refresh" class="btn">Refresh</button></div>
+  </header>
+  <main class="agent-wrap">
+    <p class="muted">Live figures from this instance since it started; the durable, all-instance view is the Cloud Monitoring dashboard (<code>monitoring/</code>). Targets are the PRD's pilot targets. Open with <code>?admin=&lt;token&gt;</code> on a deployed service.</p>
+    <p id="error" class="error" role="alert"></p>
+    <section class="tiles" id="tiles" aria-label="Key performance indicators"></section>
+    <div class="panel" style="margin-top:14px">
+      <div class="panel-title">Latency <span class="muted">p50 / p95 ms</span></div>
+      <table class="kpi-table" id="latency"></table>
+    </div>
+  </main>
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>
