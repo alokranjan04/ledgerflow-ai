@@ -79,8 +79,10 @@ class GeminiREST:
         raise LLMError(f"all models failed or circuit-open: {last!r}")
 
     async def _call(self, model: str, system: str, contents: list[dict], tools: list[dict] | None) -> dict:
-        body = {"systemInstruction": {"parts": [{"text": system}]}, "contents": contents,
-                "generationConfig": {"temperature": 0.2}}
+        gen = {"temperature": 0.2}
+        if config.GEMINI_THINKING_LEVEL:
+            gen["thinkingConfig"] = {"thinkingLevel": config.GEMINI_THINKING_LEVEL}
+        body = {"systemInstruction": {"parts": [{"text": system}]}, "contents": contents, "generationConfig": gen}
         if tools:
             body["tools"] = tools
         url = f"{config.GEMINI_REST}/models/{model}:generateContent"

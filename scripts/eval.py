@@ -67,7 +67,7 @@ async def run_case(h, url, case) -> dict:
             await r.read()
     turns = []
     last_code = ""
-    async with h.ws_connect(f"{url.replace('http', 'ws', 1)}/ws/chat", headers=hdr) as ws:
+    async with h.ws_connect(f"{url.replace('http', 'ws', 1)}/ws/chat", headers={**hdr, "Origin": url}) as ws:
         for t in case["turns"]:
             t0 = time.perf_counter()
             await ws.send_json({"type": "user", "text": t["say"].replace("{otp}", last_code)})
@@ -104,8 +104,10 @@ async def run_case(h, url, case) -> dict:
 
 async def main(url: str, runs: int) -> int:
     cases = yaml.safe_load((ROOT / "evals" / "golden.yaml").read_text(encoding="utf-8"))["cases"]
+    from ledgerflow import config  # admin token from .env: metrics are admin-only when deployed
+    admin = {"X-Admin-Token": config.ADMIN_TOKEN} if config.ADMIN_TOKEN else {}
     async with aiohttp.ClientSession(cookie_jar=aiohttp.DummyCookieJar()) as h:
-        before = await (await h.get(f"{url}/api/metrics")).json()
+        before = await (await h.get(f"{url}/api/metrics", headers=admin)).json()
         results = []
         for _ in range(runs):
             for case in cases:
@@ -113,7 +115,7 @@ async def main(url: str, runs: int) -> int:
                 results.append(res)
                 fails = [c["what"] for t in res["turns"] for c in t["checks"] if not c["ok"]]
                 print(f"{'PASS' if not fails else 'FAIL'}  {res['id']}" + (f"  — {fails}" if fails else ""))
-        after = await (await h.get(f"{url}/api/metrics")).json()
+        after = await (await h.get(f"{url}/api/metrics", headers=admin)).json()
     totals: dict[str, list[bool]] = {}
     for r in results:
         for t in r["turns"]:

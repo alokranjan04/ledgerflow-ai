@@ -17,7 +17,7 @@ def env(name: str, default: str = "") -> str:
 
 
 GEMINI_API_KEY = env("GEMINI_API_KEY")
-GEMINI_TEXT_MODEL = env("GEMINI_TEXT_MODEL", "gemini-flash-latest")
+GEMINI_TEXT_MODEL = env("GEMINI_TEXT_MODEL", "gemini-flash-lite-latest")
 GEMINI_LIVE_MODEL = env("GEMINI_LIVE_MODEL", "models/gemini-3.1-flash-live-preview")
 GEMINI_VOICE = env("GEMINI_VOICE", "Aoede")
 GEMINI_REST = "https://generativelanguage.googleapis.com/v1beta"
@@ -50,7 +50,10 @@ SESSION_TTL_SECS = int(env("SESSION_TTL_SECS", "3600"))
 DEFAULT_WORKFLOW = env("DEFAULT_WORKFLOW", "loan_servicing")
 
 # LLM resilience: a second model when the primary fails, and an end-to-end turn budget.
-GEMINI_FALLBACK_MODEL = env("GEMINI_FALLBACK_MODEL", "gemini-flash-lite-latest")
+GEMINI_FALLBACK_MODEL = env("GEMINI_FALLBACK_MODEL", "gemini-flash-latest")
+# The tools do the reasoning; the model only routes and phrases, so deep "thinking" adds seconds
+# per call for no accuracy gain (measured: flash default p50 3.0 s vs flash-lite + low 0.7 s).
+GEMINI_THINKING_LEVEL = env("GEMINI_THINKING_LEVEL", "low")
 LLM_TURN_BUDGET_S = float(env("LLM_TURN_BUDGET_S", "30"))
 
 # Abuse limits per session (token buckets).

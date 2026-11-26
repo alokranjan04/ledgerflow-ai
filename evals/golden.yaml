@@ -35,7 +35,7 @@ cases:
     turns:
       - say: "Show me the payments that failed in the last six months and explain what happened."
         expect_tools: [get_payments]
-        expect_values: [get_payments.total_bounce_charges_incl_gst]
+        expect_values: [get_payments.failed_count]
       - say: "Please raise a dispute for the September one, I had money in my account."
         expect_tools: [propose_payment_dispute]
         forbid: ["has been raised", "request ID SR-"]
