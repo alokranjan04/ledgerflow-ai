@@ -210,6 +210,29 @@ def build_mock_app(ms: MockSystems, internal_token: str | None = None) -> web.Ap
             return not_found("open request")
         return web.json_response(ms.q("SELECT * FROM tickets WHERE id=?", tid)[0])
 
+    @sys_route("ops")
+    async def queue(req):
+        """Agent desk: open requests of one type, oldest first, with their payload."""
+        kind = req.query.get("type", "agent_handoff")
+        rows = ms.q("SELECT id, customer_id, type, status, summary, payload, created, updated FROM tickets "
+                    "WHERE type=? AND status IN ('open','in_progress') ORDER BY created", kind)
+        for r in rows:
+            r["payload"] = json.loads(r["payload"] or "{}")
+        return web.json_response({"open": sum(1 for r in rows if r["status"] == "open"), "items": rows})
+
+    @sys_route("ops")
+    async def accept(req):
+        tid = req.match_info["tid"]
+        body = await req.json() if req.can_read_body else {}
+        now = datetime.now(UTC).isoformat(timespec="seconds")
+        cur = ms.conn.execute("UPDATE tickets SET status='in_progress', updated=? WHERE id=? AND status='open'", (now, tid))
+        ms.conn.commit()
+        if not cur.rowcount:
+            return not_found("open request")
+        row = ms.q("SELECT * FROM tickets WHERE id=?", tid)[0]
+        row["accepted_by"] = str(body.get("agent", ""))[:60]
+        return web.json_response(row)
+
     # Cards (workflow 2) -------------------------------------------------------------
     @sys_route("cards")
     async def cards_for_customer(req):
@@ -249,6 +272,8 @@ def build_mock_app(ms: MockSystems, internal_token: str | None = None) -> web.Ap
     r.add_get("/ops/requests", list_requests)
     r.add_get("/ops/requests/{tid}", get_request)
     r.add_post("/ops/requests/{tid}/escalate", escalate)
+    r.add_get("/ops/queue", queue)
+    r.add_post("/ops/requests/{tid}/accept", accept)
     r.add_get("/cards/customers/{cid}/cards", cards_for_customer)
     r.add_get("/cards/cards/{card}/transactions", card_txns)
     r.add_get("/admin/faults", get_faults)

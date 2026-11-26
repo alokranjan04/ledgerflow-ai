@@ -37,7 +37,8 @@ from ledgerflow.platform.connectors import DEFAULT_POLICIES, ConnectorError, Con
 from ledgerflow.platform.gcp_auth import IdTokenProvider
 from ledgerflow.platform.gemini_text import GeminiREST, TextAgent
 from ledgerflow.platform.state import build_state
-from ledgerflow.platform.telemetry import METRICS, Trace
+from ledgerflow.platform.stepup import DemoSms, StepUp
+from ledgerflow.platform.telemetry import METRICS, Trace, kpis
 from ledgerflow.platform.tools import REGISTRY, ToolContext
 from ledgerflow.platform.workflow import load_workflows
 from ledgerflow.voice import telephony
@@ -92,7 +93,8 @@ async def on_startup(app: web.Application) -> None:
     app["chat_limit"] = state.chat_limit
     app["voice_limit"] = state.voice_limit
     app["login_guard"] = state.login_guard
-    actions = ActionService(AuditLog(config.AUDIT_DB_PATH))
+    step_up = StepUp(_sms_sender(), config.STEP_UP_VALID_SECS) if config.STEP_UP_OTP else None
+    actions = ActionService(AuditLog(config.AUDIT_DB_PATH), step_up=step_up)
     common_tools.register_common_actions(actions)
     loans_domain.register_actions(actions)
     cards_domain.register_actions(actions)
@@ -104,6 +106,12 @@ async def on_startup(app: web.Application) -> None:
     logs.event(log, "ready", role=config.SERVICE_ROLE, state_backend=state.backend, port=config.PORT, as_of=config.AS_OF.isoformat(), workflows=list(app["workflows"]),
                text_model=config.GEMINI_TEXT_MODEL, fallback_model=config.GEMINI_FALLBACK_MODEL,
                gemini_key_set=bool(config.GEMINI_API_KEY), admin_token_set=bool(config.ADMIN_TOKEN))
+
+
+def _sms_sender():
+    if config.SMS_PROVIDER == "demo":
+        return DemoSms()
+    raise SystemExit(f"SMS_PROVIDER={config.SMS_PROVIDER!r} has no adapter yet; use 'demo' or add one in stepup.py")
 
 
 async def on_cleanup(app: web.Application) -> None:
@@ -369,6 +377,7 @@ async def api_metrics(request):
     out["llm_breakers"] = {m: b.state for m, b in request.app["llm"].breakers.items()}
     out["active_sessions"] = await request.app["sessions"].count()
     out["state_backend"] = request.app["state"].backend
+    out["kpis"] = kpis()
     out["role"] = config.SERVICE_ROLE
     return web.json_response(out)
 
@@ -414,6 +423,35 @@ async def api_faults(request):
             return web.json_response({"error": f"systems service: {e.kind}"}, status=502)
     return web.json_response({"profiles": profiles, "breakers": request.app["connectors"].health(),
                               "admin": admin_ok(request)})
+
+
+# ------------------------------------------------------------------ agent desk (hand-offs)
+async def agent_page(request):
+    return web.FileResponse(STATIC / "agent.html", headers={"Cache-Control": "no-cache"})
+
+
+async def api_agent_queue(request):
+    if not admin_ok(request):
+        raise web.HTTPForbidden(text=json.dumps({"error": "admin token required"}), content_type="application/json")
+    try:
+        return web.json_response(await request.app["connectors"]["ops"].get("/queue", {"type": "agent_handoff"}))
+    except ConnectorError as e:
+        return web.json_response({"error": f"service ops: {e.kind}"}, status=502)
+
+
+async def api_agent_accept(request):
+    if not admin_ok(request):
+        raise web.HTTPForbidden(text=json.dumps({"error": "admin token required"}), content_type="application/json")
+    body = await request.json()
+    tid = str(body.get("id", ""))
+    if not re.fullmatch(r"SR-[A-Z0-9]{8}", tid):
+        return web.json_response({"error": "bad request id"}, status=400)
+    try:
+        row = await request.app["connectors"]["ops"].post(f"/requests/{tid}/accept", {"agent": str(body.get("agent", ""))[:60]})
+    except ConnectorError as e:
+        return web.json_response({"error": f"service ops: {e.kind}"}, status=404 if e.kind == "not_found" else 502)
+    logs.event(log, "hand-off accepted", request_id=tid)
+    return web.json_response(row)
 
 
 async def healthz(request):
@@ -548,6 +586,9 @@ def make_app() -> web.Application:
     r.add_get("/ws/voice", ws_voice)
     r.add_post("/answer", answer)
     r.add_get("/stream", stream)
+    r.add_get("/agent", agent_page)
+    r.add_get("/api/agent/queue", api_agent_queue)
+    r.add_post("/api/agent/accept", api_agent_accept)
     r.add_get("/healthz", healthz)
     r.add_get("/readyz", readyz)
     r.add_get("/health", health)

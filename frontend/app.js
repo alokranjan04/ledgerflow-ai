@@ -161,6 +161,7 @@ const TOOL_LABELS = {
   propose_payment_dispute: 'Preparing dispute', propose_foreclosure_statement: 'Preparing statement request',
   propose_prepayment_request: 'Preparing prepayment request', propose_service_request: 'Preparing service request',
   confirm_action: 'Submitting to Service Operations', cancel_action: 'Cancelling', verify_identity: 'Verifying identity',
+  verify_otp: 'Checking your code', request_human_agent: 'Connecting you to an agent',
   get_card_summary: 'Cards', get_card_transactions: 'Card transactions', propose_card_dispute: 'Preparing card dispute',
 };
 const chips = {};
@@ -237,6 +238,22 @@ function renderCard(card) {
     case 'action_result':
       h = d.ok ? `<h4>✓ Request submitted <span class="pill good">${esc(d.request_id)}</span></h4><p style="margin:0">${esc((d.type || '').replace(/_/g, ' '))} · status ${esc(d.status)}${d.next_step ? ' · ' + esc(d.next_step) : ''}${d.delivery ? ' · ' + esc(d.delivery) : ''}${d.replayed ? ' · (already submitted — no duplicate created)' : ''}</p>`
         : `<h4>Not submitted</h4><p class="error" style="margin:0">${esc(d.error)}</p>`; break;
+    case 'otp_sent':
+      h = d.demo_code
+        ? `<h4>Verification code sent <span class="pill neutral">to ${esc(d.sent_to)}</span></h4>
+           <div class="sms"><span class="muted">Simulated SMS (demo only)</span><br>LedgerFlow code <b class="otp">${esc(d.demo_code)}</b>. Valid 5 minutes. Never share it with anyone.</div>
+           <p class="muted" style="margin:6px 0 0">Type or say the code to continue.</p>`
+        : d.error ? `<h4>Verification needed</h4><p class="error" style="margin:0">${esc(d.error)}</p>`
+          : `<h4>Verification code sent <span class="pill neutral">to ${esc(d.sent_to)}</span></h4><p style="margin:0">Type or say the 6-digit code from your SMS.</p>`;
+      break;
+    case 'otp_result':
+      h = d.ok ? `<h4>✓ Verified <span class="pill good">valid ${esc(d.valid_minutes)} min</span></h4>`
+        : `<h4>Code not accepted</h4><p class="error" style="margin:0">${esc(d.error)}${d.attempts_left ? ` · ${esc(d.attempts_left)} attempt(s) left` : ''}</p>`;
+      break;
+    case 'handoff':
+      h = `<h4>Connecting you to an agent <span class="pill warn">${esc(d.request_id)}</span></h4>
+        <p style="margin:0">${esc(d.next_step)} Queue position: ${esc(d.queue_position)}.</p>`;
+      break;
     case 'action_cancelled':
       h = `<h4>Request cancelled</h4>`; break;
     case 'requests':

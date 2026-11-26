@@ -66,17 +66,21 @@ async def run_case(h, url, case) -> dict:
         async with h.post(f"{url}/api/workflow", json={"workflow": case["workflow"]}, headers=hdr) as r:
             await r.read()
     turns = []
+    last_code = ""
     async with h.ws_connect(f"{url.replace('http', 'ws', 1)}/ws/chat", headers=hdr) as ws:
         for t in case["turns"]:
             t0 = time.perf_counter()
-            await ws.send_json({"type": "user", "text": t["say"]})
+            await ws.send_json({"type": "user", "text": t["say"].replace("{otp}", last_code)})
             tools, data, reply = [], {}, ""
             while True:
                 ev = await ws.receive_json(timeout=120)
                 if ev["type"] == "tool_finished":
                     tools.append(ev["name"])
-                    if ev.get("card") and isinstance(ev["card"].get("data"), dict):
-                        data[ev["name"]] = ev["card"]["data"]
+                    card = ev.get("card") or {}
+                    if isinstance(card.get("data"), dict):
+                        data[ev["name"]] = card["data"]
+                        if card.get("type") == "otp_sent" and card["data"].get("demo_code"):
+                            last_code = card["data"]["demo_code"]    # what the customer reads on their screen
                 elif ev["type"] == "assistant":
                     reply = ev["text"]
                 elif ev["type"] == "trace":

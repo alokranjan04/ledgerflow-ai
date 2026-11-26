@@ -21,6 +21,7 @@ from pathlib import Path
 
 from ledgerflow.platform import logs
 from ledgerflow.platform.sessions import Session
+from ledgerflow.platform.telemetry import METRICS
 
 _audit_log = logs.get("ledgerflow.audit")
 
@@ -85,8 +86,9 @@ class AuditLog:
 
 
 class ActionService:
-    def __init__(self, audit: AuditLog):
+    def __init__(self, audit: AuditLog, step_up=None):
         self.audit = audit
+        self.step_up = step_up          # StepUp, or None to disable the possession check
         self.executors: dict[str, Executor] = {}
 
     def register(self, action: str, executor: Executor) -> None:
@@ -116,11 +118,16 @@ class ActionService:
             self.audit.write(session, p.action, "confirm_rejected_no_customer_turn", token)
             return {"ok": False, "error": "Not executed: the customer has not confirmed yet. Read the summary "
                                           "back, ask for an explicit yes, and wait for their answer."}
+        if self.step_up is not None and not self.step_up.satisfied(session):
+            challenge = await self.step_up.challenge(session)
+            self.audit.write(session, p.action, "step_up_challenged", token)
+            return challenge
         idem = hashlib.sha256(f"{session.id}:{token}".encode()).hexdigest()[:32]
         try:
             result = await self.executors[p.action](ctx, p.params, idem)
             result = {"ok": True, **result}
             self.audit.write(session, p.action, "executed", token, idem, p.params, result)
+            METRICS.incr("kpi.actions_executed")
         except Exception as e:  # connector failure etc.: report, keep pending so the customer can retry
             self.audit.write(session, p.action, "failed", token, idem, p.params, {"error": str(e)[:300]})
             return {"ok": False, "error": f"The request could not be completed right now ({type(e).__name__}). "

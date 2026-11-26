@@ -2,11 +2,15 @@
 requests, confirmation of actions, human hand-off and ending a phone call."""
 from __future__ import annotations
 
+import hashlib
 import re
+import time
 from datetime import date, datetime
 
+from ledgerflow.platform import logs
 from ledgerflow.platform.connectors import NotFound, Unauthorized
 from ledgerflow.platform.sessions import Session
+from ledgerflow.platform.telemetry import METRICS
 from ledgerflow.platform.tools import REGISTRY, ToolContext, ToolResult
 
 MAX_VERIFY_ATTEMPTS = 3
@@ -99,13 +103,63 @@ async def propose_service_request(ctx: ToolContext, category: str, description: 
 @REGISTRY.tool(
     "confirm_action",
     "Submit a prepared request after the customer has explicitly said yes to the summary you read back. "
-    "Never call this in the same turn as the proposal.",
+    "Never call this in the same turn as the proposal. If it answers step_up_required, a one-time code was "
+    "sent to the customer's mobile: ask for it, call verify_otp, then call confirm_action again.",
     params={"confirmation_id": {"type": "string", "description": "The confirmation ID returned by the propose tool"}},
     required=["confirmation_id"], side_effect="write")
 async def confirm_action(ctx: ToolContext, confirmation_id: str) -> ToolResult:
     res = await ctx.actions.confirm(ctx.session, confirmation_id, ctx)
-    card = {"type": "action_result", "data": res}
-    return ToolResult(res, card=card)
+    if res.get("step_up_required"):
+        demo_code = res.pop("_demo_code", None)        # to the customer's screen only, never to the model
+        card = {"type": "otp_sent", "data": {"sent_to": res.get("sent_to"), "demo_code": demo_code,
+                                             "error": res.get("error")}}
+        return ToolResult(res, card=card)
+    return ToolResult(res, card={"type": "action_result", "data": res})
+
+
+@REGISTRY.tool(
+    "verify_otp",
+    "Check the one-time code the customer received on their registered mobile (after confirm_action asked for "
+    "step-up). On success, call confirm_action again with the same confirmation ID.",
+    params={"code": {"type": "string", "description": "The 6-digit code exactly as the customer said or typed it"}},
+    required=["code"], side_effect="auth")
+async def verify_otp(ctx: ToolContext, code: str) -> ToolResult:
+    if ctx.actions.step_up is None:
+        return ToolResult({"ok": True, "verified": True, "note": "step-up not required here"})
+    res = ctx.actions.step_up.verify(ctx.session, code)
+    ctx.actions.audit.write(ctx.session, "step_up", "verified" if res.get("ok") else "failed")
+    return ToolResult(res, card={"type": "otp_result", "data": res})
+
+
+@REGISTRY.tool(
+    "request_human_agent",
+    "Hand the conversation to a human agent: when the customer asks for a person, is upset, or the request is "
+    "outside what you can do. Creates a hand-off with the conversation so far so they never repeat themselves.",
+    params={"reason": {"type": "string", "description": "Why a human is needed, one sentence"},
+            "urgency": {"type": "string", "enum": ["normal", "high"], "description": "high = distress, fraud, or a blocked payment"}},
+    required=["reason"], side_effect="write", requires_auth=False)
+async def request_human_agent(ctx: ToolContext, reason: str, urgency: str = "normal") -> ToolResult:
+    s = ctx.session
+    window = int(time.time() // 600)                       # one hand-off per session per 10 minutes
+    idem = hashlib.sha256(f"{s.id}:handoff:{window}".encode()).hexdigest()[:32]
+    payload = {"reason": reason[:300], "urgency": urgency if urgency in ("normal", "high") else "normal",
+               "channel": ctx.mode, "workflow": s.workflow_id, "verified": s.verified,
+               "customer_name": s.customer_name if s.verified else "", "phone_masked": logs.mask_phone(s.phone),
+               "transcript": s.transcript[-12:]}
+    t = await ctx.connectors["ops"].post("/requests", {"customer_id": s.customer_id or "UNVERIFIED", "type": "agent_handoff",
+                                                       "summary": reason[:200], "payload": payload},
+                                         idempotency_key=idem, trace=ctx.trace)
+    queue = await ctx.connectors["ops"].get("/queue", {"type": "agent_handoff"}, trace=ctx.trace)
+    first_time = s.memory.get("outcome") != "handed_off"
+    s.memory["outcome"] = "handed_off"
+    if first_time:
+        METRICS.incr("kpi.handoffs")
+    ctx.actions.audit.write(s, "agent_handoff", "requested", "", idem, {"reason": reason[:200]}, {"request_id": t["id"]})
+    data = {"ok": True, "request_id": t["id"], "queue_position": max(1, queue.get("open", 1)),
+            "next_step": ("An agent will call back on the registered mobile." if ctx.mode == "phone"
+                          else "An agent will join this chat; they can already see the conversation."),
+            "verified": s.verified}
+    return ToolResult(data, card={"type": "handoff", "data": data})
 
 
 @REGISTRY.tool(

@@ -543,6 +543,62 @@
   ],
   "outcome": "passed"
  },
+ "tests/test_stepup_handoff.py::test_write_needs_a_code_and_the_model_never_sees_it": {
+  "reqs": [
+   "REQ-SEC-003.1",
+   "REQ-SEC-003.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_stepup_handoff.py::test_wrong_codes_are_limited_and_codes_expire": {
+  "reqs": [
+   "REQ-SEC-003.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_stepup_handoff.py::test_code_sends_are_rate_limited": {
+  "reqs": [
+   "REQ-SEC-003.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_stepup_handoff.py::test_step_up_is_valid_for_a_window_then_required_again": {
+  "reqs": [
+   "REQ-SEC-003.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_stepup_handoff.py::test_the_code_never_reaches_the_logs": {
+  "reqs": [
+   "REQ-SEC-003.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_stepup_handoff.py::test_handoff_carries_identity_and_conversation_and_is_idempotent": {
+  "reqs": [
+   "REQ-HND-001.1",
+   "REQ-HND-001.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_stepup_handoff.py::test_unverified_caller_can_still_reach_a_human": {
+  "reqs": [
+   "REQ-HND-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_stepup_handoff.py::test_containment_kpi_is_derived_from_engaged_sessions_and_handoffs": {
+  "reqs": [
+   "REQ-HND-001.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_stepup_handoff.py::test_agent_desk_lists_and_accepts_handoffs": {
+  "reqs": [
+   "REQ-HND-001.4"
+  ],
+  "outcome": "passed"
+ },
  "tests/test_text_agent.py::test_parallel_tools_and_grounded_answer": {
   "reqs": [
    "REQ-AGT-002.1",

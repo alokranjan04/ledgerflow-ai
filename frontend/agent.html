@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LedgerFlow AI — Agent desk</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true"></span>LedgerFlow <span class="brand-ai">AI</span> · Agent desk</div>
+    <div class="topbar-right">
+      <label class="muted">Agent <input id="agent-name" value="agent-1" aria-label="Agent name" style="padding:6px;border:1px solid var(--line);border-radius:8px"></label>
+      <button id="refresh" class="btn">Refresh</button>
+    </div>
+  </header>
+  <main class="agent-wrap">
+    <p class="muted">Hand-offs from the assistant, oldest first. Each carries the customer's verification status and the conversation so far, so the customer never repeats themselves. Open this page with <code>?admin=&lt;token&gt;</code> on a deployed service.</p>
+    <p id="error" class="error" role="alert"></p>
+    <div id="queue" aria-live="polite"></div>
+  </main>
+  <script src="/static/agent.js"></script>
+</body>
+</html>

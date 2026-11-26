@@ -18,7 +18,7 @@ from ledgerflow import config
 from ledgerflow.platform import logs
 from ledgerflow.platform.connectors import Breaker
 from ledgerflow.platform.grounding import Grounder
-from ledgerflow.platform.telemetry import METRICS, Trace
+from ledgerflow.platform.telemetry import METRICS, Trace, mark_engaged
 from ledgerflow.platform.tools import REGISTRY, ToolContext
 
 Emit = Callable[[dict], Awaitable[None]]
@@ -133,6 +133,7 @@ class TextAgent:
         trace = Trace()
         t0 = time.perf_counter()
         session.user_turn_seq += 1
+        mark_engaged(session.memory)
         turn_token = logs.bind(turn=session.user_turn_seq, channel="text", workflow=wf.id)
         session.add_transcript("user", text, "text")
         session.history.append({"role": "user", "parts": [{"text": text}]})

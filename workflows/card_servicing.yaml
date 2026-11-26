@@ -13,6 +13,8 @@ tools:
   - list_service_requests
   - propose_service_request
   - confirm_action
+  - verify_otp
+  - request_human_agent
   - cancel_action
   - end_call
   - get_card_summary

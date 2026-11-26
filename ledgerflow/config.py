@@ -77,5 +77,12 @@ INTERNAL_TOKEN = env("INTERNAL_TOKEN")
 SYSTEMS_AUDIENCE = env("SYSTEMS_AUDIENCE")
 
 
+# ---- Step-up verification before write actions ------------------------------
+STEP_UP_OTP = env("STEP_UP_OTP", "1") == "1"
+STEP_UP_VALID_SECS = int(env("STEP_UP_VALID_SECS", "600"))
+# demo = simulated SMS shown on the customer's own screen (PoC). Production: an SMS/WhatsApp gateway.
+SMS_PROVIDER = env("SMS_PROVIDER", "demo")
+
+
 def deployed() -> bool:
     return bool(PUBLIC_URL)

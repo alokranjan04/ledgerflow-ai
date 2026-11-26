@@ -48,6 +48,23 @@ class Metrics:
 METRICS = Metrics()
 
 
+def mark_engaged(memory: dict) -> None:
+    """Count a conversation once, at the customer's first turn (denominator of containment)."""
+    if not memory.get("engaged"):
+        memory["engaged"] = True
+        METRICS.incr("kpi.sessions_engaged")
+
+
+def kpis() -> dict:
+    """Business KPIs derived from counters (process-wide; per instance until exported)."""
+    c = METRICS.counters
+    engaged, handoffs = c.get("kpi.sessions_engaged", 0), c.get("kpi.handoffs", 0)
+    return {"sessions_engaged": engaged, "handoffs": handoffs, "actions_executed": c.get("kpi.actions_executed", 0),
+            "containment_rate": round(1 - handoffs / engaged, 4) if engaged else None,
+            "step_up_sent": c.get("stepup.sent", 0), "step_up_verified": c.get("stepup.verified", 0),
+            "step_up_failed": c.get("stepup.failed", 0)}
+
+
 @dataclass
 class Span:
     name: str

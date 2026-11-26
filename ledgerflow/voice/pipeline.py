@@ -24,7 +24,7 @@ from aiohttp import WSMsgType, web
 from ledgerflow import config
 from ledgerflow.platform import logs
 from ledgerflow.platform.grounding import Grounder
-from ledgerflow.platform.telemetry import METRICS, Trace
+from ledgerflow.platform.telemetry import METRICS, Trace, mark_engaged
 from ledgerflow.platform.tools import REGISTRY, ToolContext
 from ledgerflow.voice.recorder import CallRecorder
 
@@ -228,6 +228,7 @@ class VoiceConversation:
                 if not self.user_turn_open:
                     self.user_turn_open = True
                     self.session.user_turn_seq += 1      # a new customer turn (gates confirm_action)
+                    mark_engaged(self.session.memory)
                     self.trace = Trace()
                 self.heard_buf += heard
                 self.last_user_speech = time.perf_counter()
