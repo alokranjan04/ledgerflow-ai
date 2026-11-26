@@ -5,7 +5,13 @@ answers customer-specific questions from five simulated enterprise systems with 
 and verified, and completes service requests behind explicit confirmation. A **credit-card workflow** runs
 on the same platform to show reuse.
 
-Architecture, decisions and trade-offs: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Architecture, decisions and trade-offs: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · production hardening and roadmap:
+[docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) · decisions: [docs/adr/](docs/adr/).
+
+C4 diagrams (interactive HTML): [C1 context](.archify/c1-context-20261126-213221/c1-context.html) ·
+[C2 containers](.archify/c2-containers-20261126-213221/c2-containers.html) ·
+[C3 components](.archify/c3-components-20261126-213221/c3-components.html) ·
+[C4 code](.archify/c4-code-20261126-213221/c4-code.html).
 
 ## Run it locally
 
@@ -51,8 +57,13 @@ Pick a demo customer on the sign-in screen. All data is synthetic, and dates are
 
 ## Tests and evidence
 
+Development is spec-first: requirements live in [specs/](specs/) (15 specs, EARS format, MUST / SHOULD /
+MEASURED). Every test carries `@pytest.mark.req("REQ-...")`, and the traceability gate fails if a MUST
+requirement has no passing test or a test cites an unknown ID.
+
 ```bash
-pytest -q                                              # finance (incl. property tests), grounding, journeys, security, resilience, agent loop
+pytest -q                                              # 76 tests: finance, grounding, journeys, security, actions, connectors, voice (fake Gemini Live), app
+python scripts/trace_matrix.py                         # runs tests, writes reports/traceability.md, exit 1 on any MUST gap
 ruff check .
 python scripts/bench.py platform --url http://localhost:8080 --steps 25,50,100,200
 python scripts/bench.py journeys --url http://localhost:8080 --runs 3   # needs GEMINI_API_KEY
@@ -91,6 +102,7 @@ ledgerflow/mocks/           synthetic data + mock CRM, Loans, Payments, Policy, 
 workflows/                  workflow YAML + prompts
 frontend/                   single-page app (no build step)
 scripts/                    check_env, bench, deploy, fake_call, analyze_recording
-tests/                      pytest suite
+specs/                      requirements (EARS), one spec per area
+tests/                      pytest suite, tagged with requirement IDs
 docs/                       architecture, build plan, brief
 ```

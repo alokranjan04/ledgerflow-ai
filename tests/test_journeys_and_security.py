@@ -1,6 +1,8 @@
 """Customer journeys against the mock systems, plus security, actions and resilience."""
 from datetime import date
 
+import pytest
+
 from ledgerflow.platform.common_tools import verify
 from ledgerflow.platform.connectors import Breaker
 from ledgerflow.platform.tools import FORBIDDEN_ARGS, REGISTRY
@@ -9,6 +11,7 @@ from .conftest import ANANYA, MEERA, PRIYA, RAHUL
 
 
 # ----------------------------------------------------------------- journeys
+@pytest.mark.req("REQ-QRY-001.2", "REQ-QRY-001.4", "REQ-QRY-001.7")
 async def test_journey1_emi_increase_explained_and_prepayment_savings(env):
     s, ctx = await env["login"](*PRIYA)
     r = (await env["run"](ctx, "explain_emi_change")).data
@@ -22,6 +25,7 @@ async def test_journey1_emi_increase_explained_and_prepayment_savings(env):
     assert p["reduce_tenure"]["interest_saved"] == "₹21,003.30"
 
 
+@pytest.mark.req("REQ-QRY-001.1", "REQ-QRY-001.3", "REQ-QRY-001.4")
 async def test_journey2_next_emi_last_payment_and_20k_tenure(env):
     s, ctx = await env["login"](*PRIYA)
     summ = (await env["run"](ctx, "get_loan_summary")).data
@@ -32,6 +36,7 @@ async def test_journey2_next_emi_last_payment_and_20k_tenure(env):
     assert p["reduce_tenure"]["tenure_reduced_by_months"] >= 1
 
 
+@pytest.mark.req("REQ-QRY-001.3", "REQ-ACT-001.2", "REQ-ACT-001.7", "REQ-SYS-001.1")
 async def test_journey3_failed_payments_then_dispute_september(env):
     s, ctx = await env["login"](*PRIYA)
     r = (await env["run"](ctx, "get_payments", status="failed", months=6)).data
@@ -47,6 +52,7 @@ async def test_journey3_failed_payments_then_dispute_september(env):
     assert [a["event"] for a in audit][:2] == ["executed", "proposed"]
 
 
+@pytest.mark.req("REQ-QRY-001.5", "REQ-QRY-001.7")
 async def test_journey4_foreclosure_three_customers(env):
     _, ctx = await env["login"](*PRIYA)
     f = (await env["run"](ctx, "check_foreclosure")).data
@@ -59,6 +65,7 @@ async def test_journey4_foreclosure_three_customers(env):
     assert not f["eligible"] and f["clause"] == "PL-FX-6.1" and f["total_payoff_amount"] is None
 
 
+@pytest.mark.req("REQ-CRD-001.2", "REQ-CRD-001.3")
 async def test_journey5_card_workflow_duplicate_dispute(env):
     s, ctx = await env["login"](*ANANYA, workflow="card_servicing")
     t = (await env["run"](ctx, "get_card_transactions", merchant="croma")).data
@@ -71,11 +78,13 @@ async def test_journey5_card_workflow_duplicate_dispute(env):
 
 
 # ----------------------------------------------------------------- security
+@pytest.mark.req("REQ-SEC-001.4")
 async def test_tools_never_take_customer_id_from_the_model():
     for spec in REGISTRY.specs.values():
         assert not (set(spec.params) & FORBIDDEN_ARGS), spec.name
 
 
+@pytest.mark.req("REQ-SEC-001.1")
 async def test_unverified_session_cannot_read_data(env):
     s = env["store"].create("loan_servicing")
     from ledgerflow.platform.telemetry import Trace
@@ -85,6 +94,7 @@ async def test_unverified_session_cannot_read_data(env):
     assert not r.data["ok"] and "Verify" in r.data["error"]
 
 
+@pytest.mark.req("REQ-SEC-001.5")
 async def test_cannot_dispute_another_customers_payment(env):
     _, ctx = await env["login"](*PRIYA)
     rahul_failed = env["ms"].q("SELECT id FROM payments WHERE loan_id='L-10002' AND status='failed'")[0]["id"]
@@ -92,12 +102,14 @@ async def test_cannot_dispute_another_customers_payment(env):
     assert not r["ok"]
 
 
+@pytest.mark.req("REQ-SEC-001.4")
 async def test_injected_customer_id_argument_is_ignored(env):
     _, ctx = await env["login"](*PRIYA)
     r = await REGISTRY.run("get_loan_summary", {"customer_id": "C1002"}, ctx, ["get_loan_summary"])
     assert r.data["loan_id"] == "L-10001"
 
 
+@pytest.mark.req("REQ-SEC-001.2")
 async def test_identity_lockout_after_three_failures(env):
     s = env["store"].create("loan_servicing")
     for _ in range(3):
@@ -106,6 +118,7 @@ async def test_identity_lockout_after_three_failures(env):
     assert res.get("locked") and not s.verified
 
 
+@pytest.mark.req("REQ-SEC-001.6")
 async def test_workflow_isolation_cards_cannot_call_loan_tools(env):
     _, ctx = await env["login"](*PRIYA, workflow="card_servicing")
     r = await env["run"](ctx, "propose_prepayment_request", amount=20000, option="reduce_tenure")
@@ -113,6 +126,7 @@ async def test_workflow_isolation_cards_cannot_call_loan_tools(env):
 
 
 # ----------------------------------------------------------------- actions
+@pytest.mark.req("REQ-ACT-001.2", "REQ-ACT-001.5")
 async def test_action_needs_new_customer_turn_and_is_idempotent(env):
     s, ctx = await env["login"](*PRIYA)
     prop = (await env["run"](ctx, "propose_foreclosure_statement")).data
@@ -126,6 +140,7 @@ async def test_action_needs_new_customer_turn_and_is_idempotent(env):
     assert len(env["ms"].q("SELECT id FROM tickets WHERE customer_id='C1001'")) == 1
 
 
+@pytest.mark.req("REQ-ACT-001.3")
 async def test_token_from_another_session_is_rejected(env):
     s1, ctx1 = await env["login"](*PRIYA)
     s2, ctx2 = await env["login"](*PRIYA)
@@ -134,6 +149,7 @@ async def test_token_from_another_session_is_rejected(env):
     assert not (await env["run"](ctx2, "confirm_action", confirmation_id=tok)).data["ok"]
 
 
+@pytest.mark.req("REQ-ACT-001.6")
 async def test_cancel_action(env):
     s, ctx = await env["login"](*PRIYA)
     tok = (await env["run"](ctx, "propose_foreclosure_statement")).data["confirmation_id"]
@@ -142,6 +158,7 @@ async def test_cancel_action(env):
     assert not (await env["run"](ctx, "confirm_action", confirmation_id=tok)).data["ok"]
 
 
+@pytest.mark.req("REQ-ACT-001.7")
 async def test_audit_log_is_append_only(env):
     import sqlite3
 
@@ -155,6 +172,7 @@ async def test_audit_log_is_append_only(env):
 
 
 # ----------------------------------------------------------------- resilience
+@pytest.mark.req("REQ-CON-001.6", "REQ-QRY-001.6", "REQ-SYS-001.3")
 async def test_payments_down_gives_degraded_options_not_a_crash(env):
     _, ctx = await env["login"](*PRIYA)
     env["ms"].profiles["payments"]["down"] = True
@@ -164,6 +182,7 @@ async def test_payments_down_gives_degraded_options_not_a_crash(env):
     assert not r2["ok"] and r2["unavailable"] == "payments"
 
 
+@pytest.mark.req("REQ-CON-001.2")
 async def test_retries_absorb_intermittent_errors(env):
     _, ctx = await env["login"](*PRIYA)
     env["ms"].profiles["loans"]["error_rate"] = 0.3
@@ -175,6 +194,7 @@ async def test_retries_absorb_intermittent_errors(env):
     assert ok >= 85
 
 
+@pytest.mark.req("REQ-CON-001.3")
 async def test_circuit_opens_then_recovers(env):
     _, ctx = await env["login"](*PRIYA)
     env["ms"].profiles["loans"]["down"] = True
@@ -190,6 +210,7 @@ async def test_circuit_opens_then_recovers(env):
     assert env["con"]["loans"].breaker.state == "closed"
 
 
+@pytest.mark.req("REQ-CON-001.3")
 def test_breaker_state_machine_with_fake_clock():
     t = [0.0]
     b = Breaker(threshold=2, cooldown=10, clock=lambda: t[0])
@@ -207,6 +228,7 @@ def test_breaker_state_machine_with_fake_clock():
     assert b.state == "closed"
 
 
+@pytest.mark.req("REQ-SYS-001.4")
 async def test_ops_requires_idempotency_key(env):
     import aiohttp
     async with aiohttp.ClientSession() as http:

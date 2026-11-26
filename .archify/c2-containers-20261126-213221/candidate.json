@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "C2 · Containers — LedgerFlow AI on Cloud Run",
+    "output": ".archify/c2-containers-20261126-213221/c2-containers.html",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "components": [
+    { "id": "caller", "type": "external", "label": "Phone caller", "sublabel": "PSTN", "icon": "person", "pos": [40, 40], "size": [140, 60] },
+    { "id": "telephony", "type": "cloud", "label": "Vobiz / Twilio", "sublabel": "mu-law 8 kHz stream", "pos": [250, 40], "size": [170, 60] },
+    { "id": "customer", "type": "external", "label": "Customer", "sublabel": "browser", "icon": "person", "pos": [40, 200], "size": [140, 64] },
+    { "id": "spa", "type": "frontend", "label": "Web SPA", "sublabel": "vanilla JS · AudioWorklet mic", "tag": "frontend/", "pos": [270, 188], "size": [190, 88] },
+    { "id": "gateway", "type": "backend", "label": "LedgerFlow service", "sublabel": "aiohttp · Python 3.12 · app.py", "tag": "Cloud Run asia-south1", "pos": [615, 180], "size": [230, 110] },
+    { "id": "gemini", "type": "cloud", "label": "Gemini API", "sublabel": "generateContent + Live", "pos": [1010, 40], "size": [190, 64] },
+    { "id": "secrets", "type": "security", "label": "Secret Manager", "sublabel": "Gemini key · admin token", "pos": [1010, 150], "size": [190, 64] },
+    { "id": "mocks", "type": "external", "label": "Enterprise systems", "sublabel": "/mock/* · 6 systems", "tag": "same process (PoC)", "pos": [1010, 262], "size": [190, 78] },
+    { "id": "ledgerdb", "type": "database", "label": "Systems of record", "sublabel": "SQLite · seeded data", "pos": [1030, 400], "size": [150, 64] },
+    { "id": "sessions", "type": "database", "label": "Session store", "sublabel": "in-memory · 1 h TTL", "pos": [510, 420], "size": [160, 64] },
+    { "id": "audit", "type": "database", "label": "Audit log", "sublabel": "SQLite · append-only", "pos": [690, 420], "size": [160, 64] },
+    { "id": "logging", "type": "cloud", "label": "Cloud Logging", "sublabel": "JSON · trace IDs", "pos": [800, 560], "size": [170, 64] }
+  ],
+  "boundaries": [
+    { "kind": "security-group", "label": "Cloud Run instance · runtime SA", "wraps": ["gateway", "sessions", "audit"], "pad": 14 }
+  ],
+  "connections": [
+    { "id": "customer-opens", "from": "customer", "to": "spa", "label": "uses", "variant": "emphasis" },
+    { "id": "spa-calls", "from": "spa", "to": "gateway", "label": "REST + WSS · cookie", "variant": "emphasis" },
+    { "id": "caller-dials", "from": "caller", "to": "telephony", "label": "call" },
+    { "id": "phone-stream", "from": "telephony", "to": "gateway", "label": "webhook + media WSS" },
+    { "id": "model-calls", "from": "gateway", "to": "gemini", "label": "REST + Live WSS" },
+    { "id": "secrets-mounted", "from": "secrets", "to": "gateway", "label": "mounted env", "variant": "security" },
+    { "id": "connector-calls", "from": "gateway", "to": "mocks", "label": "HTTP + internal token", "variant": "emphasis" },
+    { "id": "systems-read", "from": "mocks", "to": "ledgerdb", "label": "SQL" },
+    { "id": "session-state", "from": "gateway", "to": "sessions", "label": "identity · context" },
+    { "id": "audit-append", "from": "gateway", "to": "audit", "label": "append" },
+    { "id": "log-out", "from": "gateway", "to": "logging", "label": "stdout JSON", "variant": "dashed" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Containers", "items": ["Web SPA: chat, cards, live mic, ops panel (frontend/)", "LedgerFlow service: text + voice runtimes, tools, actions (app.py, ledgerflow/)", "Enterprise systems: simulated CRM, Loans, Payments, Policy, Ops, Cards (ledgerflow/mocks/)"] },
+    { "dot": "rose", "title": "Perimeter", "items": ["Session in an HttpOnly SameSite=Strict cookie; never in URLs", "/mock/* answers only the service's own connectors (internal token); external calls get 403", "Runs as ledgerflow-ai-runtime with no key file; secrets from Secret Manager"] },
+    { "dot": "amber", "title": "PoC state (ADR 0003)", "items": ["One instance: sessions in memory, SQLite for systems and audit", "Scale-out: sessions to Memorystore, audit to Cloud SQL (docs/PRODUCTION_READINESS.md)"] }
+  ]
+}

@@ -44,7 +44,7 @@ async def main(url: str, secs: float, twilio: bool, token: str) -> None:
         sender = asyncio.create_task(send_silence())
         try:
             await asyncio.wait_for(receive(), timeout=secs + 5)
-        except (asyncio.TimeoutError, websockets.ConnectionClosed):
+        except (TimeoutError, websockets.ConnectionClosed):
             pass
         sender.cancel()
 

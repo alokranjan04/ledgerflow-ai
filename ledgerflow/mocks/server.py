@@ -10,6 +10,7 @@ retries and breakers are real. Splitting them out is a deployment change only.
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import math
 import random
@@ -81,8 +82,17 @@ class MockSystems:
         return loan
 
 
-def build_mock_app(ms: MockSystems) -> web.Application:
-    app = web.Application()
+def build_mock_app(ms: MockSystems, internal_token: str | None = None) -> web.Application:
+    """`internal_token`: when set, every call must carry it in X-Internal-Token, so the
+    simulated systems are reachable only by the service's own connectors."""
+
+    @web.middleware
+    async def internal_only(request, handler):
+        if internal_token and not hmac.compare_digest(request.headers.get("X-Internal-Token", ""), internal_token):
+            raise web.HTTPForbidden(text=json.dumps({"error": "internal endpoint"}), content_type="application/json")
+        return await handler(request)
+
+    app = web.Application(middlewares=[internal_only])
     r = app.router
 
     def sys_route(system: str):

@@ -18,3 +18,4 @@ venv/
 .hypothesis/
 docs/*.pdf
 tests/
+.archify/

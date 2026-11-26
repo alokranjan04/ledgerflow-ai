@@ -62,3 +62,37 @@ PRIYA = ("9800000001", "1990-04-12")
 RAHUL = ("9800000002", "1986-11-03")
 MEERA = ("9800000003", "1994-07-21")
 ANANYA = ("9800000004", "1992-02-14")
+
+
+# ----------------------------------------------------------------- traceability
+# Records, per test, its requirement IDs and outcome -> reports/test-results.json,
+# which scripts/trace_matrix.py joins with specs/ to build the traceability matrix.
+_RESULTS: dict[str, dict] = {}
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "req(*ids): requirement IDs (REQ-AREA-NNN.N) this test verifies")
+
+
+def pytest_collection_modifyitems(items):
+    for item in items:
+        reqs = [r for m in item.iter_markers("req") for r in m.args]
+        _RESULTS[item.nodeid] = {"reqs": reqs, "outcome": "not_run"}
+
+
+def pytest_runtest_logreport(report):
+    rec = _RESULTS.get(report.nodeid)
+    if rec is None:
+        return
+    if report.when == "call" or (report.when == "setup" and report.outcome != "passed"):
+        rec["outcome"] = report.outcome
+    elif report.when == "teardown" and report.outcome == "failed":
+        rec["outcome"] = "failed"
+
+
+def pytest_sessionfinish(session):
+    import json
+    from pathlib import Path
+    out = Path(__file__).resolve().parent.parent / "reports"
+    out.mkdir(exist_ok=True)
+    (out / "test-results.json").write_text(json.dumps(_RESULTS, indent=1), encoding="utf-8")

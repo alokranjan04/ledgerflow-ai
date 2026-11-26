@@ -37,7 +37,6 @@ async function api(path, opts = {}) {
   return r.json();
 }
 const wsUrl = (p) => (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + p;
-const sess = () => encodeURIComponent(state.session.id);
 
 // ------------------------------------------------------------------ boot / login
 async function boot() {
@@ -61,14 +60,15 @@ $('#login-form').onsubmit = async (e) => {
   const res = await api('/api/login', { method: 'POST', body: JSON.stringify({
     phone: $('#login-phone').value, dob: $('#login-dob').value, workflow: state.cfg.default_workflow }) });
   if (!res.ok) { $('#login-error').textContent = res.error || 'Verification failed'; return; }
-  state.session = { id: res.session_id, name: res.customer_name, workflow: res.workflow };
+  // The session ID lives only in an HttpOnly cookie; the page keeps display state.
+  state.session = { name: res.customer_name, workflow: res.workflow };
   sessionStorage.setItem('lf_session', JSON.stringify(state.session));
   enterApp();
 };
 
 function logout() {
   stopVoice();
-  if (state.session) fetch('/api/logout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: state.session.id }) });
+  if (state.session) fetch('/api/logout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   sessionStorage.removeItem('lf_session');
   state.session = null;
   if (state.chat) { state.chat.onclose = null; state.chat.close(); }
@@ -95,7 +95,7 @@ function renderWorkflowSwitch() {
   nav.onclick = async (e) => {
     const b = e.target.closest('button'); if (!b || b.dataset.id === state.session.workflow) return;
     stopVoice();
-    const r = await api('/api/workflow', { method: 'POST', body: JSON.stringify({ session_id: state.session.id, workflow: b.dataset.id }) });
+    const r = await api('/api/workflow', { method: 'POST', body: JSON.stringify({ workflow: b.dataset.id }) });
     if (r.ok) {
       state.session.workflow = r.workflow; sessionStorage.setItem('lf_session', JSON.stringify(state.session));
       renderWorkflowSwitch(); loadAccount();
@@ -109,7 +109,7 @@ function renderWorkflowSwitch() {
 
 // ------------------------------------------------------------------ account / activity
 async function loadAccount() {
-  const a = await api(`/api/account?session=${sess()}`);
+  const a = await api('/api/account');
   const wf = state.cfg.workflows.find((w) => w.id === state.session.workflow);
   const panels = wf?.panels || [];
   let html = '';
@@ -137,7 +137,7 @@ async function loadAccount() {
 }
 
 async function loadActivity() {
-  const a = await api(`/api/activity?session=${sess()}`);
+  const a = await api('/api/activity');
   $('#activity').innerHTML = a.requests.length ? a.requests.map((r) =>
     `<div class="req"><span class="id">${esc(r.id)}</span> <span class="pill ${r.status === 'open' ? 'warn' : 'good'}">${esc(r.status)}</span>
      <div>${esc(r.type.replace(/_/g, ' '))}</div><div class="muted">${fmtDate(r.created)}</div></div>`).join('')
@@ -259,7 +259,7 @@ let typingEl = null;
 function connectChat(delay = 0) {
   setTimeout(() => {
     if (!state.session) return;
-    const ws = new WebSocket(wsUrl(`/ws/chat?session=${sess()}`));
+    const ws = new WebSocket(wsUrl('/ws/chat'));
     state.chat = ws;
     ws.onmessage = (m) => onEvent(JSON.parse(m.data), 'text');
     ws.onclose = () => { if (state.session) connectChat(Math.min(5000, (delay || 500) * 2)); };
@@ -313,7 +313,7 @@ async function startVoice() {
     const inCtx = new AudioContext();
     await inCtx.audioWorklet.addModule('/static/audio-capture.js');
     const outCtx = new AudioContext({ sampleRate: 24000 });
-    const ws = new WebSocket(wsUrl(`/ws/voice?session=${sess()}`));
+    const ws = new WebSocket(wsUrl('/ws/voice'));
     ws.binaryType = 'arraybuffer';
     const v = state.voice = { ws, stream, inCtx, outCtx, sources: [], nextTime: 0 };
     const src = inCtx.createMediaStreamSource(stream);
@@ -408,7 +408,8 @@ $('#faults').onchange = async (e) => {
   const sel = e.target.closest('select'); if (!sel) return;
   const sys = sel.dataset.sys, fn = FAULT_MODES[sel.value];
   const body = { [sys]: fn ? { ...BASE[sys], ...fn(BASE[sys]) } : { ...BASE[sys] } };
-  await api('/api/faults', { method: 'POST', body: JSON.stringify(body) });
+  const r = await api('/api/faults', { method: 'POST', body: JSON.stringify(body) });
+  if (r.error) { sys('Fault injection needs the admin token: open the app with ?admin=<token>.', 'warn'); loadFaults(); return; }
   loadFaults();
   sysMsg(`${sys} set to ${sel.value}`);
 };

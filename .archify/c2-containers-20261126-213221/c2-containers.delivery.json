@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "1f9c2e2f-ceb6-4cde-b928-bb0a563d6818",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "C:\\Users\\Alok Ranjan\\Documents\\ledgerflow-ai\\.archify\\c2-containers-20261126-213221\\candidate.json",
+  "output": "C:\\Users\\Alok Ranjan\\Documents\\ledgerflow-ai\\.archify\\c2-containers-20261126-213221\\c2-containers.html",
+  "specification": {
+    "sha256": "1f04ca2f19d5e2007ec545cd4faacc79e00e90a3cbcb40eaa2f26669dba501ec",
+    "bytes": 4237
+  },
+  "artifact": {
+    "sha256": "9a29223713b358f5e44c149594f257ca5c0f1ff4d699f0355d6db20db658b469",
+    "bytes": 830849
+  }
+}

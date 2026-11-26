@@ -48,18 +48,19 @@ def pct(vals: list[float], p: float) -> float:
 
 async def login(h, url, phone, dob):
     async with h.post(f"{url}/api/login", json={"phone": phone, "dob": dob}) as r:
-        return (await r.json())["session_id"]
+        await r.read()
+        return r.cookies["lf_sid"].value      # HttpOnly cookie; scripts send it back as X-Session
 
 
 async def platform(url: str, steps: list[int]) -> tuple[str, dict]:
     rows, raw = [], {}
-    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=0)) as h:
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=0), cookie_jar=aiohttp.DummyCookieJar()) as h:
         await h.post(f"{url}/api/metrics/reset")
         for n in steps:
             lat: dict[str, list[float]] = {"login": [], "account": [], "activity": []}
             errors = 0
 
-            async def one(i):
+            async def one(i, lat=lat):
                 nonlocal errors
                 phone, dob = CUSTOMERS[i % len(CUSTOMERS)]
                 try:
@@ -68,7 +69,7 @@ async def platform(url: str, steps: list[int]) -> tuple[str, dict]:
                     lat["login"].append((time.perf_counter() - t) * 1000)
                     for name, path in (("account", "/api/account"), ("activity", "/api/activity")):
                         t = time.perf_counter()
-                        async with h.get(f"{url}{path}?session={sid}") as r:
+                        async with h.get(f"{url}{path}", headers={"X-Session": sid}) as r:
                             await r.read()
                             if r.status != 200:
                                 errors += 1
@@ -96,11 +97,11 @@ async def platform(url: str, steps: list[int]) -> tuple[str, dict]:
 
 async def journeys(url: str, runs: int) -> tuple[str, dict]:
     results: dict[str, list[dict]] = {}
-    async with aiohttp.ClientSession() as h:
+    async with aiohttp.ClientSession(cookie_jar=aiohttp.DummyCookieJar()) as h:
         for name, (phone, dob, turns) in JOURNEYS.items():
             for _ in range(runs):
                 sid = await login(h, url, phone, dob)
-                async with h.ws_connect(f"{url.replace('http', 'ws', 1)}/ws/chat?session={sid}") as ws:
+                async with h.ws_connect(f"{url.replace('http', 'ws', 1)}/ws/chat", headers={"X-Session": sid}) as ws:
                     for text in turns:
                         t0 = time.perf_counter()
                         first_progress = None

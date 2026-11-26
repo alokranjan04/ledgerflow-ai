@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "C3 · Components — inside the LedgerFlow service",
+    "output": ".archify/c3-components-20261126-213221/c3-components.html",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "components": [
+    { "id": "telephony", "type": "cloud", "label": "Vobiz / Twilio", "sublabel": "media stream", "pos": [40, 40], "size": [150, 60] },
+    { "id": "browser", "type": "frontend", "label": "Web SPA", "sublabel": "chat + mic", "pos": [40, 220], "size": [150, 64] },
+    { "id": "identity", "type": "security", "label": "Identity", "sublabel": "phone + DOB · lockouts", "pos": [40, 420], "size": [150, 64] },
+    { "id": "http", "type": "security", "label": "HTTP edge", "sublabel": "routes · cookie auth · CSP · rate limits", "tag": "app.py", "pos": [360, 230], "size": [210, 100] },
+    { "id": "sessions", "type": "database", "label": "Session store", "sublabel": "identity · history · pending actions", "pos": [360, 420], "size": [210, 64] },
+    { "id": "gemini_text", "type": "cloud", "label": "Gemini API", "sublabel": "generateContent", "pos": [680, 40], "size": [190, 60] },
+    { "id": "text", "type": "backend", "label": "Text runtime", "sublabel": "TextAgent · fallback model · budget", "pos": [680, 170], "size": [190, 80] },
+    { "id": "voice", "type": "backend", "label": "Voice pipeline", "sublabel": "Live bridge · browser + phone", "pos": [680, 330], "size": [190, 80] },
+    { "id": "gemini_live", "type": "cloud", "label": "Gemini Live API", "sublabel": "bidirectional audio WSS", "pos": [680, 490], "size": [190, 60] },
+    { "id": "grounding", "type": "security", "label": "Grounding verifier", "sublabel": "numbers must trace to tools", "pos": [980, 90], "size": [180, 64] },
+    { "id": "registry", "type": "backend", "label": "Tool registry", "sublabel": "scoped · identity-gated · timed", "tag": "platform", "pos": [980, 250], "size": [180, 80] },
+    { "id": "workflow", "type": "backend", "label": "Workflow loader", "sublabel": "YAML · prompt · allowed tools", "pos": [980, 430], "size": [180, 64] },
+    { "id": "finance", "type": "backend", "label": "Finance + rules", "sublabel": "Decimal EMI · prepay · foreclosure", "pos": [1250, 90], "size": [180, 64] },
+    { "id": "domain", "type": "backend", "label": "Domain tools", "sublabel": "loans.py · cards.py", "pos": [1250, 250], "size": [180, 80] },
+    { "id": "actions", "type": "backend", "label": "Action service", "sublabel": "propose · confirm · idempotent", "tag": "platform", "pos": [1250, 430], "size": [180, 70] },
+    { "id": "audit", "type": "database", "label": "Audit log", "sublabel": "append-only triggers", "pos": [1250, 580], "size": [180, 64] },
+    { "id": "mocks", "type": "external", "label": "Enterprise systems", "sublabel": "/mock/* · internal token", "pos": [1530, 90], "size": [180, 64] },
+    { "id": "connectors", "type": "backend", "label": "Connector layer", "sublabel": "deadline · retry · breaker · cache", "tag": "platform", "pos": [1530, 250], "size": [180, 80] }
+  ],
+  "connections": [
+    { "id": "spa-requests", "from": "browser", "to": "http", "label": "REST + WSS", "variant": "emphasis" },
+    { "id": "phone-requests", "from": "telephony", "to": "http", "label": "media stream" },
+    { "id": "verify-login", "from": "http", "to": "identity", "label": "verify", "variant": "security" },
+    { "id": "load-session", "from": "http", "to": "sessions", "label": "cookie → session" },
+    { "id": "chat-turn", "from": "http", "to": "text", "label": "chat WS", "variant": "emphasis" },
+    { "id": "voice-session", "from": "http", "to": "voice", "label": "audio WS" },
+    { "id": "text-model", "from": "text", "to": "gemini_text", "label": "function calls" },
+    { "id": "voice-model", "from": "voice", "to": "gemini_live", "label": "PCM audio" },
+    { "id": "check-figures", "from": "text", "to": "grounding", "label": "check reply", "variant": "security" },
+    { "id": "text-tools", "from": "text", "to": "registry", "label": "tool calls", "variant": "emphasis" },
+    { "id": "voice-tools", "from": "voice", "to": "registry", "label": "tool calls" },
+    { "id": "scope-tools", "from": "workflow", "to": "registry", "label": "allowed tools" },
+    { "id": "run-tool", "from": "registry", "to": "domain", "label": "run tool", "variant": "emphasis" },
+    { "id": "compute", "from": "domain", "to": "finance", "label": "compute" },
+    { "id": "two-phase", "from": "domain", "to": "actions", "label": "propose / confirm" },
+    { "id": "append-audit", "from": "actions", "to": "audit", "label": "append" },
+    { "id": "typed-calls", "from": "domain", "to": "connectors", "label": "typed calls", "variant": "emphasis" },
+    { "id": "execute-request", "from": "actions", "to": "connectors", "label": "execute · idem key" },
+    { "id": "system-http", "from": "connectors", "to": "mocks", "label": "HTTP" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Request path (text)", "items": ["HTTP edge resolves the cookie to a verified session", "Text runtime asks Gemini, runs tool calls in parallel through the registry", "Grounding verifier gates numbers: one regeneration, then a templated answer"] },
+    { "dot": "violet", "title": "Voice path", "items": ["Voice pipeline bridges browser PCM or phone mu-law to Gemini Live", "Same registry, session and action rules as text; transcripts flow back into text history"] },
+    { "dot": "emerald", "title": "Reusable platform", "items": ["A workflow is a YAML file: card servicing reuses every platform component", "Actions run only after a new customer turn; idempotency key per confirmation"] },
+    { "dot": "amber", "title": "Source map", "items": ["ledgerflow/platform/: tools, actions, connectors, grounding, sessions, gemini_text, workflow", "ledgerflow/voice/pipeline.py · ledgerflow/domains/ · ledgerflow/finance/loans.py"] }
+  ]
+}

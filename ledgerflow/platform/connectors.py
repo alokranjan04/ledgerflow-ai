@@ -103,6 +103,7 @@ class Connector:
     system: str
     base_url: str
     policy: Policy = field(default_factory=Policy)
+    headers: dict = field(default_factory=dict)       # e.g. service credentials
 
     def __post_init__(self):
         self.breaker = Breaker(self.policy.breaker_threshold, self.policy.breaker_cooldown_s)
@@ -176,7 +177,9 @@ class Connector:
         raise last or Unavailable(self.system)
 
     async def _once(self, method, path, params, body, idempotency_key):
-        headers = {"Idempotency-Key": idempotency_key} if idempotency_key else {}
+        headers = dict(self.headers)
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
         async with self.sem:
             try:
                 async with self.session().request(
@@ -200,8 +203,9 @@ class Connector:
 class ConnectorRegistry:
     """Connectors are configured once and shared by every workflow."""
 
-    def __init__(self, base_url: str, policies: dict[str, Policy]):
-        self.connectors = {name: Connector(name, f"{base_url}/{name}", pol) for name, pol in policies.items()}
+    def __init__(self, base_url: str, policies: dict[str, Policy], headers: dict | None = None):
+        self.connectors = {name: Connector(name, f"{base_url}/{name}", pol, dict(headers or {}))
+                           for name, pol in policies.items()}
 
     def __getitem__(self, name: str) -> Connector:
         return self.connectors[name]

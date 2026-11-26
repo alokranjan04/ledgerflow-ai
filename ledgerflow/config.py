@@ -43,7 +43,25 @@ RECORD_CALLS = env("RECORD_CALLS", "0") == "1"
 RECORDINGS_DIR = DATA_DIR / "recordings"
 GCS_RECORDINGS_BUCKET = env("GCS_RECORDINGS_BUCKET")
 
-# Admin: fault-injection panel and metrics reset. Empty = open (local demo only).
+# Admin: fault-injection panel and metrics reset. Empty = open only when running
+# locally; a deployed service (PUBLIC_URL set) refuses admin calls without a token.
 ADMIN_TOKEN = env("ADMIN_TOKEN")
 SESSION_TTL_SECS = int(env("SESSION_TTL_SECS", "3600"))
 DEFAULT_WORKFLOW = env("DEFAULT_WORKFLOW", "loan_servicing")
+
+# LLM resilience: a second model when the primary fails, and an end-to-end turn budget.
+GEMINI_FALLBACK_MODEL = env("GEMINI_FALLBACK_MODEL", "gemini-flash-lite-latest")
+LLM_TURN_BUDGET_S = float(env("LLM_TURN_BUDGET_S", "30"))
+
+# Abuse limits per session (token buckets).
+CHAT_TURNS_PER_MIN = int(env("CHAT_TURNS_PER_MIN", "20"))
+VOICE_STARTS_PER_MIN = int(env("VOICE_STARTS_PER_MIN", "4"))
+
+# Logging: JSON for Cloud Logging; plain text is easier to read locally.
+LOG_JSON = env("LOG_JSON", "1") == "1"
+LOG_LEVEL = env("LOG_LEVEL", "INFO")
+GCP_PROJECT = env("GOOGLE_CLOUD_PROJECT") or env("GCP_PROJECT")
+
+
+def deployed() -> bool:
+    return bool(PUBLIC_URL)

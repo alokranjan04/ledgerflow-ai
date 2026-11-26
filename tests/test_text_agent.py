@@ -1,4 +1,6 @@
 """Text agent loop with a scripted LLM (deterministic, offline)."""
+import pytest
+
 from ledgerflow.platform.gemini_text import TextAgent
 from ledgerflow.platform.telemetry import METRICS
 
@@ -29,6 +31,7 @@ async def _agent(env, script):
     return agent, llm
 
 
+@pytest.mark.req("REQ-AGT-002.1", "REQ-AGT-002.2", "REQ-SEC-001.4")
 async def test_parallel_tools_and_grounded_answer(env):
     s, _ = await env["login"](*PRIYA)
     both = {"role": "model", "parts": [{"functionCall": {"name": "explain_emi_change", "args": {}}},
@@ -49,6 +52,7 @@ async def test_parallel_tools_and_grounded_answer(env):
     assert "customer_id" not in str(llm.calls[0]["tools"])
 
 
+@pytest.mark.req("REQ-AGT-004.4")
 async def test_hallucinated_number_is_regenerated(env):
     s, _ = await env["login"](*PRIYA)
     agent, llm = await _agent(env, [fc("get_loan_summary"), text("Your next EMI is ₹18,000."),
@@ -58,6 +62,7 @@ async def test_hallucinated_number_is_regenerated(env):
     assert len(llm.calls) == 3 and "[GROUNDING CHECK]" in str(llm.calls[2]["contents"][-1])
 
 
+@pytest.mark.req("REQ-AGT-004.4")
 async def test_persistent_hallucination_falls_back_to_tool_values(env):
     s, _ = await env["login"](*PRIYA)
     before = METRICS.counters.get("grounding.fallback", 0)
@@ -67,6 +72,7 @@ async def test_persistent_hallucination_falls_back_to_tool_values(env):
     assert METRICS.counters["grounding.fallback"] == before + 1
 
 
+@pytest.mark.req("REQ-AGT-002.3")
 async def test_context_carries_over_turns(env):
     s, _ = await env["login"](*PRIYA)
     agent, llm = await _agent(env, [fc("get_payments", status="failed"), text("You had 3 failed payments."),
@@ -77,6 +83,7 @@ async def test_context_carries_over_turns(env):
     assert any("functionResponse" in p for c in second for p in c["parts"])   # earlier tool results still in context
 
 
+@pytest.mark.req("REQ-AGT-002.4")
 async def test_llm_outage_is_reported_not_raised(env):
     s, _ = await env["login"](*PRIYA)
 

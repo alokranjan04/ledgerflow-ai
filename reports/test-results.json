@@ -1,0 +1,563 @@
+{
+ "tests/test_app.py::test_login_account_and_unknown_session": {
+  "reqs": [
+   "REQ-SEC-001.1",
+   "REQ-UI-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_app.py::test_login_rate_limited_per_phone_across_sessions": {
+  "reqs": [
+   "REQ-SEC-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_app.py::test_chat_websocket_event_protocol": {
+  "reqs": [
+   "REQ-UI-001.2",
+   "REQ-AGT-002.2",
+   "REQ-AGT-002.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_app.py::test_workflow_switch_keeps_identity_and_context": {
+  "reqs": [
+   "REQ-AGT-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_app.py::test_phone_answer_webhook": {
+  "reqs": [
+   "REQ-VOX-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_app.py::test_fault_panel_api": {
+  "reqs": [
+   "REQ-SYS-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_app.py::test_phone_numbers_are_masked_in_logs": {
+  "reqs": [
+   "REQ-SEC-001.7"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_app.py::test_security_headers": {
+  "reqs": [
+   "REQ-SEC-001.9"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_app.py::test_session_is_an_httponly_cookie_never_in_body_or_url": {
+  "reqs": [
+   "REQ-SEC-002.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_app.py::test_mock_systems_are_not_reachable_from_outside": {
+  "reqs": [
+   "REQ-SEC-002.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_app.py::test_admin_calls_refused_when_deployed_without_token": {
+  "reqs": [
+   "REQ-SEC-002.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_app.py::test_csp_and_transport_headers": {
+  "reqs": [
+   "REQ-SEC-002.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_app.py::test_cross_origin_websocket_is_refused": {
+  "reqs": [
+   "REQ-SEC-002.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_app.py::test_chat_is_rate_limited_per_session": {
+  "reqs": [
+   "REQ-OPS-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_app.py::test_liveness_and_readiness": {
+  "reqs": [
+   "REQ-OPS-001.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_finance.py::test_emi_golden_values": {
+  "reqs": [
+   "REQ-FIN-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_finance.py::test_rounding_half_up_to_paisa": {
+  "reqs": [
+   "REQ-FIN-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_finance.py::test_inr_indian_grouping": {
+  "reqs": [
+   "REQ-FIN-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_finance.py::test_add_months_clamps_month_end": {
+  "reqs": [
+   "REQ-FIN-001.7"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_finance.py::test_schedule_principal_sums_to_sanctioned_and_ends_at_zero": {
+  "reqs": [
+   "REQ-FIN-001.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_finance.py::test_rate_reset_recomputes_emi_over_remaining_tenure": {
+  "reqs": [
+   "REQ-FIN-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_finance.py::test_prepayment_reduce_tenure_saves_at_least_reduce_emi": {
+  "reqs": [
+   "REQ-FIN-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_finance.py::test_accrued_interest_actual_365": {
+  "reqs": [
+   "REQ-FIN-001.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_finance.py::test_property_schedule_never_negative_and_closes": {
+  "reqs": [
+   "REQ-FIN-001.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_finance.py::test_property_larger_prepayment_never_increases_interest": {
+  "reqs": [
+   "REQ-FIN-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_finance.py::test_amortise_folds_rounding_residue_into_last_emi": {
+  "reqs": [
+   "REQ-FIN-001.8"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_grounding.py::test_words_to_number": {
+  "reqs": [
+   "REQ-AGT-004.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_grounding.py::test_exact_and_rounded_figures_pass": {
+  "reqs": [
+   "REQ-AGT-004.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_grounding.py::test_derived_difference_passes": {
+  "reqs": [
+   "REQ-AGT-004.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_grounding.py::test_hallucinated_number_is_caught": {
+  "reqs": [
+   "REQ-AGT-004.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_grounding.py::test_lakh_notation_and_spoken_words": {
+  "reqs": [
+   "REQ-AGT-004.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_grounding.py::test_user_supplied_numbers_and_dates_are_not_flagged": {
+  "reqs": [
+   "REQ-AGT-004.2",
+   "REQ-AGT-004.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_grounding.py::test_ids_are_ignored": {
+  "reqs": [
+   "REQ-AGT-004.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_grounding.py::test_wrong_count_is_caught": {
+  "reqs": [
+   "REQ-AGT-004.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_journey1_emi_increase_explained_and_prepayment_savings": {
+  "reqs": [
+   "REQ-QRY-001.2",
+   "REQ-QRY-001.4",
+   "REQ-QRY-001.7"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_journey2_next_emi_last_payment_and_20k_tenure": {
+  "reqs": [
+   "REQ-QRY-001.1",
+   "REQ-QRY-001.3",
+   "REQ-QRY-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_journey3_failed_payments_then_dispute_september": {
+  "reqs": [
+   "REQ-QRY-001.3",
+   "REQ-ACT-001.2",
+   "REQ-ACT-001.7",
+   "REQ-SYS-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_journey4_foreclosure_three_customers": {
+  "reqs": [
+   "REQ-QRY-001.5",
+   "REQ-QRY-001.7"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_journey5_card_workflow_duplicate_dispute": {
+  "reqs": [
+   "REQ-CRD-001.2",
+   "REQ-CRD-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_tools_never_take_customer_id_from_the_model": {
+  "reqs": [
+   "REQ-SEC-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_unverified_session_cannot_read_data": {
+  "reqs": [
+   "REQ-SEC-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_cannot_dispute_another_customers_payment": {
+  "reqs": [
+   "REQ-SEC-001.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_injected_customer_id_argument_is_ignored": {
+  "reqs": [
+   "REQ-SEC-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_identity_lockout_after_three_failures": {
+  "reqs": [
+   "REQ-SEC-001.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_workflow_isolation_cards_cannot_call_loan_tools": {
+  "reqs": [
+   "REQ-SEC-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_action_needs_new_customer_turn_and_is_idempotent": {
+  "reqs": [
+   "REQ-ACT-001.2",
+   "REQ-ACT-001.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_token_from_another_session_is_rejected": {
+  "reqs": [
+   "REQ-ACT-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_cancel_action": {
+  "reqs": [
+   "REQ-ACT-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_audit_log_is_append_only": {
+  "reqs": [
+   "REQ-ACT-001.7"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_payments_down_gives_degraded_options_not_a_crash": {
+  "reqs": [
+   "REQ-CON-001.6",
+   "REQ-QRY-001.6",
+   "REQ-SYS-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_retries_absorb_intermittent_errors": {
+  "reqs": [
+   "REQ-CON-001.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_circuit_opens_then_recovers": {
+  "reqs": [
+   "REQ-CON-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_breaker_state_machine_with_fake_clock": {
+  "reqs": [
+   "REQ-CON-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_journeys_and_security.py::test_ops_requires_idempotency_key": {
+  "reqs": [
+   "REQ-SYS-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_ops.py::test_llm_falls_back_to_second_model_and_breaker_skips_dead_primary": {
+  "reqs": [
+   "REQ-OPS-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_ops.py::test_all_models_down_raises": {
+  "reqs": [
+   "REQ-OPS-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_ops.py::test_turn_budget_stops_a_hung_turn": {
+  "reqs": [
+   "REQ-OPS-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_ops.py::test_token_bucket_refills": {
+  "reqs": [
+   "REQ-OPS-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_ops.py::test_json_logs_carry_correlation_and_mask_pii": {
+  "reqs": [
+   "REQ-OPS-001.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_ops.py::test_golden_set_references_real_tools_and_value_matching_works": {
+  "reqs": [
+   "REQ-OPS-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_seed_is_deterministic": {
+  "reqs": [
+   "REQ-DAT-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_scenarios_hold_on_any_date[as_of0]": {
+  "reqs": [
+   "REQ-DAT-001.2",
+   "REQ-DAT-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_scenarios_hold_on_any_date[as_of1]": {
+  "reqs": [
+   "REQ-DAT-001.2",
+   "REQ-DAT-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_scenarios_hold_on_any_date[as_of2]": {
+  "reqs": [
+   "REQ-DAT-001.2",
+   "REQ-DAT-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_mock_latency_matches_profile": {
+  "reqs": [
+   "REQ-SYS-001.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_service_request_escalation": {
+  "reqs": [
+   "REQ-SYS-001.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_deadline_raises_typed_timeout": {
+  "reqs": [
+   "REQ-CON-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_non_idempotent_write_is_not_retried": {
+  "reqs": [
+   "REQ-CON-001.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_client_errors_do_not_open_the_breaker": {
+  "reqs": [
+   "REQ-CON-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_reference_data_is_cached_balances_are_not": {
+  "reqs": [
+   "REQ-CON-001.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_propose_has_no_side_effect": {
+  "reqs": [
+   "REQ-ACT-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_expired_confirmation_is_rejected": {
+  "reqs": [
+   "REQ-ACT-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_failed_execution_is_reported_and_can_be_retried": {
+  "reqs": [
+   "REQ-ACT-001.8"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_workflows_load_and_reference_only_registered_tools": {
+  "reqs": [
+   "REQ-AGT-001.1",
+   "REQ-AGT-001.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_prompts_treat_data_as_reference_not_instructions": {
+  "reqs": [
+   "REQ-SEC-001.8"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_secrets_are_excluded_from_image_and_repo": {
+  "reqs": [
+   "REQ-PLT-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_card_summary_with_minimum_due_rule": {
+  "reqs": [
+   "REQ-CRD-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_platform.py::test_card_dispute_outside_window_is_refused": {
+  "reqs": [
+   "REQ-CRD-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_text_agent.py::test_parallel_tools_and_grounded_answer": {
+  "reqs": [
+   "REQ-AGT-002.1",
+   "REQ-AGT-002.2",
+   "REQ-SEC-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_text_agent.py::test_hallucinated_number_is_regenerated": {
+  "reqs": [
+   "REQ-AGT-004.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_text_agent.py::test_persistent_hallucination_falls_back_to_tool_values": {
+  "reqs": [
+   "REQ-AGT-004.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_text_agent.py::test_context_carries_over_turns": {
+  "reqs": [
+   "REQ-AGT-002.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_text_agent.py::test_llm_outage_is_reported_not_raised": {
+  "reqs": [
+   "REQ-AGT-002.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_voice.py::test_browser_voice_turn_tools_bargein_and_context": {
+  "reqs": [
+   "REQ-VOX-001.1",
+   "REQ-VOX-001.2",
+   "REQ-VOX-001.3",
+   "REQ-VOX-001.4",
+   "REQ-VOX-001.5",
+   "REQ-VOX-001.9"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_voice.py::test_voice_grounding_monitor_flags_unsupported_figure": {
+  "reqs": [
+   "REQ-AGT-004.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_voice.py::test_phone_call_hangs_up_after_goodbye": {
+  "reqs": [
+   "REQ-VOX-001.7"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_voice.py::test_gemini_rejecting_the_session_is_reported": {
+  "reqs": [
+   "REQ-VOX-001.8"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_voice.py::test_phone_transport_converts_24k_pcm_to_8k_mulaw": {
+  "reqs": [
+   "REQ-VOX-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_voice.py::test_answer_xml_for_vobiz_and_twilio": {
+  "reqs": [
+   "REQ-VOX-001.6"
+  ],
+  "outcome": "passed"
+ }
+}

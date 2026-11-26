@@ -15,6 +15,8 @@ from collections.abc import Awaitable, Callable
 import aiohttp
 
 from ledgerflow import config
+from ledgerflow.platform import logs
+from ledgerflow.platform.connectors import Breaker
 from ledgerflow.platform.grounding import Grounder
 from ledgerflow.platform.telemetry import METRICS, Trace
 from ledgerflow.platform.tools import REGISTRY, ToolContext
@@ -23,6 +25,7 @@ Emit = Callable[[dict], Awaitable[None]]
 MAX_TOOL_ROUNDS = 6
 MAX_HISTORY = 40
 GROUNDER = Grounder()
+log = logs.get("ledgerflow.llm")
 
 
 class LLMError(Exception):
@@ -30,9 +33,24 @@ class LLMError(Exception):
 
 
 class GeminiREST:
-    def __init__(self, api_key: str, model: str):
-        self.api_key, self.model = api_key, model
+    """Gemini generateContent with a model fallback chain.
+
+    Each model has its own circuit breaker: when the primary keeps failing
+    (outage, quota), calls go straight to the fallback model until the
+    primary's cooldown passes, instead of paying its timeout on every turn.
+    """
+
+    def __init__(self, api_key: str, model: str, fallback_models: list[str] | None = None,
+                 call_timeout_s: float = 25.0):
+        self.api_key = api_key
+        self.models = [model] + [m for m in (fallback_models or []) if m and m != model]
+        self.breakers = {m: Breaker(threshold=3, cooldown=30) for m in self.models}
+        self.call_timeout_s = call_timeout_s
         self._session: aiohttp.ClientSession | None = None
+
+    @property
+    def model(self) -> str:
+        return self.models[0]
 
     def session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -40,16 +58,36 @@ class GeminiREST:
         return self._session
 
     async def generate(self, system: str, contents: list[dict], tools: list[dict] | None) -> dict:
+        last: Exception | None = None
+        for i, model in enumerate(self.models):
+            br = self.breakers[model]
+            if not br.allow():
+                continue
+            try:
+                content = await self._call(model, system, contents, tools)
+                br.success()
+                if i:
+                    METRICS.incr("llm.text.fallback_used")
+                    log.warning("LLM fallback model answered", extra={"fields": {"model": model}})
+                return content
+            except (TimeoutError, LLMError, aiohttp.ClientError) as e:
+                br.failure()
+                METRICS.incr(f"llm.text.error.{model}")
+                log.warning("LLM call failed", extra={"fields": {"model": model, "error": str(e)[:200]}})
+                last = e
+        raise LLMError(f"all models failed or circuit-open: {last!r}")
+
+    async def _call(self, model: str, system: str, contents: list[dict], tools: list[dict] | None) -> dict:
         body = {"systemInstruction": {"parts": [{"text": system}]}, "contents": contents,
                 "generationConfig": {"temperature": 0.2}}
         if tools:
             body["tools"] = tools
-        url = f"{config.GEMINI_REST}/models/{self.model}:generateContent"
-        for attempt in range(3):
+        url = f"{config.GEMINI_REST}/models/{model}:generateContent"
+        for attempt in range(2):
             async with self.session().post(url, json=body, headers={"x-goog-api-key": self.api_key},
-                                           timeout=aiohttp.ClientTimeout(total=45)) as r:
-                if r.status in (429, 500, 502, 503, 504) and attempt < 2:
-                    await asyncio.sleep(0.5 * (attempt + 1))
+                                           timeout=aiohttp.ClientTimeout(total=self.call_timeout_s)) as r:
+                if r.status in (429, 500, 502, 503, 504) and attempt == 0:
+                    await asyncio.sleep(0.4)
                     continue
                 data = await r.json(content_type=None)
                 if r.status != 200:
@@ -58,7 +96,7 @@ class GeminiREST:
                 if not cands or "content" not in cands[0]:
                     raise LLMError(f"Gemini returned no content: {json.dumps(data)[:300]}")
                 return cands[0]["content"]
-        raise LLMError("Gemini unavailable")
+        raise LLMError(f"{model} unavailable")
 
     async def close(self) -> None:
         if self._session and not self._session.closed:
@@ -95,25 +133,30 @@ class TextAgent:
         trace = Trace()
         t0 = time.perf_counter()
         session.user_turn_seq += 1
+        turn_token = logs.bind(turn=session.user_turn_seq, channel="text", workflow=wf.id)
         session.add_transcript("user", text, "text")
         session.history.append({"role": "user", "parts": [{"text": text}]})
         session.history = _trim(session.history)
         tool_results: list[dict] = session.memory.setdefault("tool_results", [])
         ctx = ToolContext(session, self.connectors, self.actions, trace, config.AS_OF, mode="text")
         contents = list(session.history)
-        reply = ""
-        try:
+        tools_called: list[str] = []
+        grounding = "pass"
+
+        async def run_loop() -> str:
+            nonlocal grounding
+            reply = ""
             for _ in range(MAX_TOOL_ROUNDS + 1):
                 system = wf.system_prompt("text", session.customer_name, session.verified, as_of=config.AS_OF.isoformat())
-                tools = REGISTRY.declarations(wf.tools)
                 with trace.span("llm", metric="llm.text.call"):
-                    content = await self.llm.generate(system, contents, tools)
+                    content = await self.llm.generate(system, contents, REGISTRY.declarations(wf.tools))
                 calls = [p["functionCall"] for p in content.get("parts", []) if "functionCall" in p]
                 if not calls:
-                    reply = "".join(p.get("text", "") for p in content.get("parts", []) if not p.get("thought")).strip()
+                    reply = _text(content)
                     break
                 contents.append(content)
                 for c in calls:
+                    tools_called.append(c["name"])
                     await emit({"type": "tool_started", "name": c["name"]})
                 results = await asyncio.gather(*[
                     REGISTRY.run(c["name"], c.get("args") or {}, ctx, wf.tools) for c in calls])
@@ -128,11 +171,12 @@ class TextAgent:
                     parts.append({"functionResponse": fr})
                 contents.append({"role": "user", "parts": parts})
             del tool_results[:-30]
-            # Grounding: numbers must come from tools or the customer.
+            # Grounding gate: numbers must come from tools or the customer.
             user_texts = [t["text"] for t in session.transcript if t["role"] == "user"]
             with trace.span("grounding"):
                 bad = GROUNDER.check(reply, tool_results, user_texts)
             if bad:
+                grounding = "regenerated"
                 METRICS.incr("grounding.violation_first_pass")
                 feedback = (f"[GROUNDING CHECK] These figures are not supported by any tool result: {', '.join(bad)}. "
                             "Rewrite the answer using only values returned by tools; call a tool if you need a number.")
@@ -140,23 +184,41 @@ class TextAgent:
                                     {"role": "user", "parts": [{"text": feedback}]}]
                 system = wf.system_prompt("text", session.customer_name, session.verified, as_of=config.AS_OF.isoformat())
                 with trace.span("llm regenerate", metric="llm.text.call"):
-                    content = await self.llm.generate(system, retry, None)
-                reply = "".join(p.get("text", "") for p in content.get("parts", []) if not p.get("thought")).strip()
-                bad = GROUNDER.check(reply, tool_results, user_texts)
-                if bad:
+                    reply = _text(await self.llm.generate(system, retry, None))
+                if GROUNDER.check(reply, tool_results, user_texts):
+                    grounding = "fallback"
                     METRICS.incr("grounding.fallback")
                     reply = _fallback(tool_results)
             METRICS.incr("grounding.checked")
+            return reply
+
+        try:
+            reply = await asyncio.wait_for(run_loop(), timeout=config.LLM_TURN_BUDGET_S)
+            outcome = "ok"
+        except TimeoutError:
+            METRICS.incr("turn.text.budget_exceeded")
+            outcome = "budget_exceeded"
+            reply = ("This is taking longer than it should, so I've stopped rather than keep you waiting. "
+                     "Please ask again, or I can raise a service request for you.")
+            trace.mark("turn budget exceeded", config.LLM_TURN_BUDGET_S * 1000, ok=False)
         except Exception as e:  # LLM outage: say so, keep the session usable
             METRICS.incr("llm.text.error")
+            outcome = "llm_unavailable"
             reply = ("Sorry, I'm having trouble reaching my language service right now. Your account data is safe; "
                      "please try again in a moment.")
             trace.mark("llm error", 0, ok=False, detail=str(e)[:120])
         total = (time.perf_counter() - t0) * 1000
         METRICS.observe("turn.text.total", total)
-        # Persist only the clean exchange; tool call/response pairs stay in history for context.
+        log.info("text turn", extra={"fields": {"outcome": outcome, "ms": round(total), "tools": tools_called,
+                                                "grounding": grounding}})
+        logs.reset(turn_token)
+        # Tool call/response pairs stay in history so follow-ups keep their context.
         session.history = contents + [{"role": "model", "parts": [{"text": reply or "…"}]}]
         session.add_transcript("assistant", reply, "text")
         await emit({"type": "assistant", "text": reply})
         await emit({"type": "trace", "mode": "text", "total_ms": round(total, 1), "spans": trace.to_event()})
         return reply
+
+
+def _text(content: dict) -> str:
+    return "".join(p.get("text", "") for p in content.get("parts", []) if not p.get("thought")).strip()

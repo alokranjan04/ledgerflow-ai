@@ -1,0 +1,538 @@
+{
+ "schema_version": 1,
+ "diagram_type": "class",
+ "meta": {
+  "title": "C4 · Code — runtime, tools, actions and transports",
+  "output": ".archify/c4-code-20261126-213221/c4-code.html",
+  "quality_profile": "showcase",
+  "locale": "en"
+ },
+ "layout": {
+  "mode": "grid",
+  "gapX": 60,
+  "typeMaxW": 240
+ },
+ "types": [
+  {
+   "id": "gemini_rest",
+   "label": "GeminiREST",
+   "kind": "class",
+   "sublabel": "platform/gemini_text.py",
+   "row": 0,
+   "col": 0,
+   "attributes": [
+    {
+     "name": "models",
+     "type": "list[str]",
+     "visibility": "public"
+    },
+    {
+     "name": "breakers",
+     "type": "dict[str, Breaker]",
+     "visibility": "public"
+    }
+   ],
+   "methods": [
+    {
+     "name": "generate",
+     "parameters": "system, contents, …",
+     "returns": "dict",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "text_agent",
+   "label": "TextAgent",
+   "kind": "class",
+   "sublabel": "platform/gemini_text.py",
+   "row": 0,
+   "col": 1,
+   "attributes": [
+    {
+     "name": "llm",
+     "type": "GeminiREST",
+     "visibility": "public"
+    }
+   ],
+   "methods": [
+    {
+     "name": "turn",
+     "parameters": "session, text, emit",
+     "returns": "str",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "voice_conv",
+   "label": "VoiceConversation",
+   "kind": "class",
+   "sublabel": "voice/pipeline.py",
+   "row": 0,
+   "col": 2.5,
+   "attributes": [
+    {
+     "name": "tr",
+     "type": "Transport",
+     "visibility": "public"
+    },
+    {
+     "name": "end_after_turn",
+     "type": "bool",
+     "visibility": "public"
+    }
+   ],
+   "methods": [
+    {
+     "name": "run",
+     "returns": "None",
+     "visibility": "public"
+    },
+    {
+     "name": "run_tools",
+     "parameters": "gem, tool_call",
+     "returns": "None",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "grounder",
+   "label": "Grounder",
+   "kind": "class",
+   "sublabel": "platform/grounding.py",
+   "row": 1,
+   "col": 0,
+   "methods": [
+    {
+     "name": "check",
+     "parameters": "reply, results, user_texts",
+     "returns": "list[str]",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "registry",
+   "label": "ToolRegistry",
+   "kind": "class",
+   "sublabel": "platform/tools.py",
+   "row": 1,
+   "col": 1,
+   "attributes": [
+    {
+     "name": "specs",
+     "type": "dict[str, ToolSpec]",
+     "visibility": "public"
+    }
+   ],
+   "methods": [
+    {
+     "name": "declarations",
+     "parameters": "names",
+     "returns": "list[dict]",
+     "visibility": "public"
+    },
+    {
+     "name": "run",
+     "parameters": "name, args, ctx, …",
+     "returns": "ToolResult",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "transport",
+   "label": "Transport",
+   "kind": "interface",
+   "sublabel": "duck-typed protocol",
+   "row": 1,
+   "col": 2.5,
+   "methods": [
+    {
+     "name": "frames",
+     "returns": "AsyncIterator",
+     "visibility": "public",
+     "abstract": true
+    },
+    {
+     "name": "play",
+     "parameters": "pcm24",
+     "returns": "None",
+     "visibility": "public",
+     "abstract": true
+    },
+    {
+     "name": "clear",
+     "returns": "None",
+     "visibility": "public",
+     "abstract": true
+    }
+   ]
+  },
+  {
+   "id": "tool_spec",
+   "label": "ToolSpec",
+   "kind": "record",
+   "sublabel": "platform/tools.py",
+   "row": 2,
+   "col": 0,
+   "attributes": [
+    {
+     "name": "name",
+     "type": "str",
+     "visibility": "public"
+    },
+    {
+     "name": "side_effect",
+     "type": "read|calc|write|auth",
+     "visibility": "public"
+    },
+    {
+     "name": "requires_auth",
+     "type": "bool",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "tool_ctx",
+   "label": "ToolContext",
+   "kind": "record",
+   "sublabel": "platform/tools.py",
+   "row": 2,
+   "col": 1,
+   "attributes": [
+    {
+     "name": "session",
+     "type": "Session",
+     "visibility": "public"
+    },
+    {
+     "name": "actions",
+     "type": "ActionService",
+     "visibility": "public"
+    },
+    {
+     "name": "connectors",
+     "type": "ConnectorRegistry",
+     "visibility": "public"
+    }
+   ],
+   "methods": [
+    {
+     "name": "customer_id",
+     "returns": "str",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "browser_tr",
+   "label": "BrowserTransport",
+   "kind": "class",
+   "sublabel": "PCM16 16 kHz in, 24 kHz out",
+   "row": 2,
+   "col": 2,
+   "methods": [
+    {
+     "name": "event",
+     "parameters": "ev",
+     "returns": "None",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "phone_tr",
+   "label": "PhoneTransport",
+   "kind": "class",
+   "sublabel": "mu-law 8 kHz · Vobiz / Twilio",
+   "row": 2,
+   "col": 3,
+   "attributes": [
+    {
+     "name": "recorder",
+     "type": "CallRecorder",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "workflow",
+   "label": "Workflow",
+   "kind": "record",
+   "sublabel": "platform/workflow.py",
+   "row": 3,
+   "col": 0,
+   "attributes": [
+    {
+     "name": "tools",
+     "type": "list[str]",
+     "visibility": "public"
+    },
+    {
+     "name": "actions",
+     "type": "list[str]",
+     "visibility": "public"
+    }
+   ],
+   "methods": [
+    {
+     "name": "system_prompt",
+     "parameters": "mode, ...",
+     "returns": "str",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "session",
+   "label": "Session",
+   "kind": "record",
+   "sublabel": "platform/sessions.py",
+   "row": 3,
+   "col": 1,
+   "attributes": [
+    {
+     "name": "customer_id",
+     "type": "str | None",
+     "visibility": "public"
+    },
+    {
+     "name": "user_turn_seq",
+     "type": "int",
+     "visibility": "public"
+    },
+    {
+     "name": "pending_actions",
+     "type": "dict",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "action_service",
+   "label": "ActionService",
+   "kind": "class",
+   "sublabel": "platform/actions.py",
+   "row": 3,
+   "col": 2,
+   "methods": [
+    {
+     "name": "propose",
+     "parameters": "session, action, …",
+     "returns": "Pending",
+     "visibility": "public"
+    },
+    {
+     "name": "confirm",
+     "parameters": "session, token, ctx",
+     "returns": "dict",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "connector",
+   "label": "Connector",
+   "kind": "class",
+   "sublabel": "platform/connectors.py",
+   "row": 3,
+   "col": 3,
+   "attributes": [
+    {
+     "name": "policy",
+     "type": "Policy",
+     "visibility": "public"
+    }
+   ],
+   "methods": [
+    {
+     "name": "call",
+     "parameters": "method, path, ...",
+     "returns": "dict",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "session_store",
+   "label": "SessionStore",
+   "kind": "class",
+   "sublabel": "in-memory · Redis-ready seam",
+   "row": 4,
+   "col": 1,
+   "methods": [
+    {
+     "name": "get",
+     "parameters": "sid",
+     "returns": "Session | None",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "audit_log",
+   "label": "AuditLog",
+   "kind": "class",
+   "sublabel": "SQLite · append-only triggers",
+   "row": 4,
+   "col": 2,
+   "methods": [
+    {
+     "name": "write",
+     "parameters": "session, action, …",
+     "returns": "None",
+     "visibility": "public"
+    }
+   ]
+  },
+  {
+   "id": "breaker",
+   "label": "Breaker",
+   "kind": "class",
+   "sublabel": "closed → open → half-open",
+   "row": 4,
+   "col": 3,
+   "methods": [
+    {
+     "name": "allow",
+     "returns": "bool",
+     "visibility": "public"
+    },
+    {
+     "name": "failure",
+     "returns": "None",
+     "visibility": "public"
+    }
+   ]
+  }
+ ],
+ "relationships": [
+  {
+   "id": "agent-llm",
+   "from": "text_agent",
+   "to": "gemini_rest",
+   "kind": "association",
+   "label": "llm"
+  },
+  {
+   "id": "agent-grounder",
+   "from": "text_agent",
+   "to": "grounder",
+   "kind": "dependency",
+   "label": "check()"
+  },
+  {
+   "id": "agent-registry",
+   "from": "text_agent",
+   "to": "registry",
+   "kind": "dependency",
+   "label": "run()"
+  },
+  {
+   "id": "voice-registry",
+   "from": "voice_conv",
+   "to": "registry",
+   "kind": "dependency",
+   "label": "run()"
+  },
+  {
+   "id": "voice-transport",
+   "from": "voice_conv",
+   "to": "transport",
+   "kind": "association",
+   "label": "tr"
+  },
+  {
+   "id": "browser-impl",
+   "from": "browser_tr",
+   "to": "transport",
+   "kind": "realization"
+  },
+  {
+   "id": "phone-impl",
+   "from": "phone_tr",
+   "to": "transport",
+   "kind": "realization"
+  },
+  {
+   "id": "registry-specs",
+   "from": "registry",
+   "to": "tool_spec",
+   "kind": "composition",
+   "label": "specs"
+  },
+  {
+   "id": "registry-ctx",
+   "from": "registry",
+   "to": "tool_ctx",
+   "kind": "dependency",
+   "label": "run(ctx)"
+  },
+  {
+   "id": "workflow-specs",
+   "from": "workflow",
+   "to": "tool_spec",
+   "kind": "dependency",
+   "label": "allows"
+  },
+  {
+   "id": "ctx-session",
+   "from": "tool_ctx",
+   "to": "session",
+   "kind": "association",
+   "label": "session"
+  },
+  {
+   "id": "ctx-actions",
+   "from": "tool_ctx",
+   "to": "action_service",
+   "kind": "association",
+   "label": "actions"
+  },
+  {
+   "id": "store-sessions",
+   "from": "session_store",
+   "to": "session",
+   "kind": "composition",
+   "label": "sessions"
+  },
+  {
+   "id": "actions-audit",
+   "from": "action_service",
+   "to": "audit_log",
+   "kind": "composition",
+   "label": "audit"
+  },
+  {
+   "id": "connector-breaker",
+   "from": "connector",
+   "to": "breaker",
+   "kind": "composition",
+   "label": "breaker"
+  }
+ ],
+ "cards": [
+  {
+   "dot": "cyan",
+   "title": "Invariants enforced in code",
+   "items": [
+    "ToolRegistry.run strips any customer_id argument; ToolContext.customer_id comes from the verified Session",
+    "ActionService.confirm executes only if Session.user_turn_seq advanced after propose()",
+    "GeminiREST skips a model whose Breaker is open and falls back to the next model"
+   ]
+  },
+  {
+   "dot": "violet",
+   "title": "Extension points",
+   "items": [
+    "New tool: an async function + @REGISTRY.tool(...) and a line in a workflow YAML",
+    "New channel: implement Transport (frames, play, clear, event)",
+    "Scale-out: replace SessionStore / AuditLog with Redis / Cloud SQL implementations"
+   ]
+  }
+ ]
+}

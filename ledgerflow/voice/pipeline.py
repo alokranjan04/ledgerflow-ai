@@ -22,6 +22,7 @@ import websockets
 from aiohttp import WSMsgType, web
 
 from ledgerflow import config
+from ledgerflow.platform import logs
 from ledgerflow.platform.grounding import Grounder
 from ledgerflow.platform.telemetry import METRICS, Trace
 from ledgerflow.platform.tools import REGISTRY, ToolContext
@@ -31,6 +32,7 @@ GREETING_GUARD_MAX_SECS = 20
 POST_END_MAX_SECS = 30
 HANGUP_PAD_SECS = 0.8
 GROUNDER = Grounder()
+_log = logs.get("ledgerflow.voice")
 
 
 # ----------------------------------------------------------------- transports
@@ -133,9 +135,9 @@ class VoiceConversation:
         self.trace = Trace()
         self.transcript_start = len(session.transcript)
 
-    def log(self, msg: str) -> None:
-        who = (self.session.customer_id or "unverified")
-        print(f"[{time.strftime('%H:%M:%S')}] voice {self.tr.mode} {who} | {msg}", flush=True)
+    def log(self, msg: str, level: int = 20) -> None:
+        logs.event(_log, f"voice: {msg}", level=level, channel=self.tr.mode,
+                   session=logs.session_hash(self.session.id), customer=self.session.customer_id or "unverified")
 
     def setup_message(self) -> dict:
         context = self.session.recent_transcript() if self.session.transcript else ""
@@ -185,7 +187,9 @@ class VoiceConversation:
                         self.log(f"task error: {j.exception()!r}")
         except websockets.ConnectionClosed as e:
             # Invalid key (1007) and depleted credits (1011) arrive here, not at connect.
-            self.log(f"Gemini closed the session: code={e.code} reason={e.reason}")
+            close = e.rcvd
+            self.log(f"Gemini closed the session: code={close.code if close else None} "
+                     f"reason={close.reason if close else ''}")
             await self.tr.event({"type": "error", "text": "The voice service closed the session. Please try again."})
         except Exception:
             self.log("pipeline error:\n" + traceback.format_exc())
