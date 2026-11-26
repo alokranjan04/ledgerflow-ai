@@ -1,0 +1,20 @@
+# Secrets — never bake into the image
+.env
+.env.*
+!.env.example
+*credentials*.json
+*service-account*.json
+*-key*.json
+# Local artefacts
+data/local/
+recordings/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.git/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+docs/*.pdf
+tests/

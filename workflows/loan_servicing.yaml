@@ -1,0 +1,36 @@
+# Workflow 1: personal-loan servicing.
+# A workflow = persona prompt + allowed tools + actions + UI panels + voice.
+id: loan_servicing
+name: Loan servicing
+description: Personal-loan questions, what-ifs, eligibility and service requests
+prompt_file: prompts/loan_servicing.md
+voice: Aoede
+greeting: "Hello, you've reached LedgerFlow Finance. I'm Aria, your loan assistant."
+panels: [loan, activity]
+tools:
+  # platform (shared)
+  - verify_identity
+  - search_policy
+  - list_service_requests
+  - propose_service_request
+  - confirm_action
+  - cancel_action
+  - end_call
+  # loan domain
+  - get_loan_summary
+  - explain_emi_change
+  - get_payments
+  - get_last_payment
+  - simulate_prepayment
+  - check_foreclosure
+  - get_servicing_options
+  - propose_payment_dispute
+  - propose_foreclosure_statement
+  - propose_prepayment_request
+actions: [service_request, payment_dispute, foreclosure_statement, prepayment_request]
+suggestions:
+  - "My EMI increased this month. Why? And if I prepay ₹50,000 today, how much interest would I save?"
+  - "Show me the payments that failed in the last six months and explain what happened."
+  - "Am I eligible for foreclosure without a penalty?"
+  - "Based on my current loan and terms, what are my options?"
+  - "What's my next EMI?"

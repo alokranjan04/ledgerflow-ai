@@ -1,0 +1,25 @@
+# Workflow 2: credit-card servicing — built on the same platform.
+# New code for this workflow: this file, its prompt, and ledgerflow/domains/cards.py.
+id: card_servicing
+name: Credit card
+description: Statement, minimum due, transactions and disputes
+prompt_file: prompts/card_servicing.md
+voice: Aoede
+greeting: "Hello, you've reached LedgerFlow Finance cards. I'm Aria."
+panels: [card, activity]
+tools:
+  - verify_identity
+  - search_policy
+  - list_service_requests
+  - propose_service_request
+  - confirm_action
+  - cancel_action
+  - end_call
+  - get_card_summary
+  - get_card_transactions
+  - propose_card_dispute
+actions: [service_request, card_dispute]
+suggestions:
+  - "What's my statement balance and minimum due?"
+  - "I think I was charged twice at Croma. Can you check?"
+  - "What happens if I only pay the minimum?"

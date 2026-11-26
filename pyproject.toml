@@ -1,0 +1,19 @@
+[project]
+name = "ledgerflow-ai"
+version = "0.1.0"
+description = "AI loan-servicing assistant: text + live voice over simulated enterprise systems"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B008"]

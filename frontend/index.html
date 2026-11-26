@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LedgerFlow AI — Customer Servicing</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230f5c4d'/><path d='M9 9v14h14' stroke='white' stroke-width='3' fill='none'/><path d='M13 19l4-5 3 3 4-6' stroke='%23a7f3d0' stroke-width='2.5' fill='none'/></svg>">
+</head>
+<body>
+  <!-- Login -->
+  <section id="login" class="login hidden" aria-labelledby="login-title">
+    <div class="login-card">
+      <div class="brand big"><span class="logo" aria-hidden="true"></span>LedgerFlow <span class="brand-ai">AI</span></div>
+      <h1 id="login-title">Sign in to your account</h1>
+      <p class="muted">Verify with your registered mobile number and date of birth.</p>
+      <form id="login-form" autocomplete="off">
+        <label>Registered mobile<input id="login-phone" inputmode="numeric" required placeholder="98000 00001"></label>
+        <label>Date of birth<input id="login-dob" type="date" required></label>
+        <button class="btn primary" type="submit">Verify &amp; continue</button>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+      <div class="demo">
+        <div class="demo-title">Demo customers <span class="muted">(synthetic data)</span></div>
+        <div id="demo-list" class="demo-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- App -->
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <div class="brand"><span class="logo" aria-hidden="true"></span>LedgerFlow <span class="brand-ai">AI</span></div>
+      <nav id="workflow-switch" class="segmented" aria-label="Workflow"></nav>
+      <div class="topbar-right">
+        <button id="ops-toggle" class="btn ghost" aria-pressed="true" title="Show latency and fault-injection panel">Ops panel</button>
+        <span id="customer-name" class="customer"></span>
+        <button id="logout" class="btn ghost">Sign out</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="account" aria-label="Account">
+        <div id="account-panel"></div>
+        <div class="panel">
+          <div class="panel-title">Service requests <button id="refresh-activity" class="link">refresh</button></div>
+          <div id="activity"></div>
+        </div>
+      </aside>
+
+      <section class="chat" aria-label="Conversation">
+        <div id="voice-bar" class="voice-bar hidden" role="status">
+          <span class="pulse" aria-hidden="true"></span><span id="voice-state">Connecting…</span>
+          <span class="muted voice-hint">Speak naturally — you can interrupt Aria at any time.</span>
+          <button id="voice-stop" class="btn small">End voice</button>
+        </div>
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <div id="suggestions" class="suggestions"></div>
+        <form id="composer" class="composer">
+          <button id="mic" type="button" class="mic" title="Talk to Aria (live voice)" aria-label="Start live voice">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2z"/></svg>
+          </button>
+          <input id="input" placeholder="Ask about your account, or tap the mic to talk" autocomplete="off" aria-label="Message">
+          <button class="btn primary" type="submit">Send</button>
+        </form>
+      </section>
+
+      <aside id="ops" class="ops" aria-label="Operations">
+        <div class="panel">
+          <div class="panel-title">Last turn — latency trace</div>
+          <div id="trace" class="trace muted">Ask something to see the per-system timing.</div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Live metrics <span class="muted">p50 / p95 ms</span> <button id="refresh-metrics" class="link">refresh</button></div>
+          <div id="metrics"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Backend systems — fault injection <button id="reset-faults" class="link">reset</button></div>
+          <div id="faults"></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
