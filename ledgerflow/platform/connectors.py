@@ -103,7 +103,8 @@ class Connector:
     system: str
     base_url: str
     policy: Policy = field(default_factory=Policy)
-    headers: dict = field(default_factory=dict)       # e.g. service credentials
+    headers: dict = field(default_factory=dict)       # static service credentials
+    auth: object = None                               # optional async .headers() (e.g. Google ID token)
 
     def __post_init__(self):
         self.breaker = Breaker(self.policy.breaker_threshold, self.policy.breaker_cooldown_s)
@@ -178,6 +179,8 @@ class Connector:
 
     async def _once(self, method, path, params, body, idempotency_key):
         headers = dict(self.headers)
+        if self.auth is not None:
+            headers.update(await self.auth.headers())
         if idempotency_key:
             headers["Idempotency-Key"] = idempotency_key
         async with self.sem:
@@ -203,9 +206,11 @@ class Connector:
 class ConnectorRegistry:
     """Connectors are configured once and shared by every workflow."""
 
-    def __init__(self, base_url: str, policies: dict[str, Policy], headers: dict | None = None):
-        self.connectors = {name: Connector(name, f"{base_url}/{name}", pol, dict(headers or {}))
+    def __init__(self, base_url: str, policies: dict[str, Policy], headers: dict | None = None, auth=None):
+        self.connectors = {name: Connector(name, f"{base_url}/{name}", pol, dict(headers or {}), auth)
                            for name, pol in policies.items()}
+        # Operator API of the systems (fault injection); not a business system, no retries.
+        self.admin = Connector("admin", f"{base_url}/admin", Policy(timeout_s=3.0, retries=0), dict(headers or {}), auth)
 
     def __getitem__(self, name: str) -> Connector:
         return self.connectors[name]
@@ -214,7 +219,7 @@ class ConnectorRegistry:
         return {n: c.breaker.state for n, c in self.connectors.items()}
 
     async def close(self) -> None:
-        for c in self.connectors.values():
+        for c in [*self.connectors.values(), self.admin]:
             await c.close()
 
 

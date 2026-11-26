@@ -28,7 +28,6 @@ async def client(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "ADMIN_TOKEN", "")
     monkeypatch.setattr(config, "PUBLIC_URL", "")
     monkeypatch.setattr(config, "STREAM_TOKEN", "")
-    lfapp.LOGIN_FAILURES.clear()
     application = lfapp.make_app()
     for p in application["mocks"].profiles.values():
         p.update(p50=1, p95=2, error_rate=0.0, down=False)
@@ -78,7 +77,7 @@ async def test_chat_websocket_event_protocol(client):
 @pytest.mark.req("REQ-AGT-001.3")
 async def test_workflow_switch_keeps_identity_and_context(client):
     await _login(client)
-    sess = next(iter(client.app["sessions"].sessions.values()))
+    sess = next(iter(client.app["sessions"].sessions.values()))   # in-memory backend in this fixture
     sess.add_transcript("user", "my EMI went up", "text")
     r = await (await client.post("/api/workflow", json={"workflow": "card_servicing"})).json()
     assert r["workflow"] == "card_servicing" and sess.verified

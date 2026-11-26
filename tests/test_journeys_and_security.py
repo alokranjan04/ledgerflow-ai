@@ -86,7 +86,7 @@ async def test_tools_never_take_customer_id_from_the_model():
 
 @pytest.mark.req("REQ-SEC-001.1")
 async def test_unverified_session_cannot_read_data(env):
-    s = env["store"].create("loan_servicing")
+    s = await env["store"].create("loan_servicing")
     from ledgerflow.platform.telemetry import Trace
     from ledgerflow.platform.tools import ToolContext
     ctx = ToolContext(s, env["con"], env["actions"], Trace(), date(2026, 11, 26))
@@ -111,7 +111,7 @@ async def test_injected_customer_id_argument_is_ignored(env):
 
 @pytest.mark.req("REQ-SEC-001.2")
 async def test_identity_lockout_after_three_failures(env):
-    s = env["store"].create("loan_servicing")
+    s = await env["store"].create("loan_servicing")
     for _ in range(3):
         assert not (await verify(s, env["con"], PRIYA[0], "2000-01-01"))["ok"]
     res = await verify(s, env["con"], *PRIYA)

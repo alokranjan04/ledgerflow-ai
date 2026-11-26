@@ -19,7 +19,10 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from ledgerflow.platform import logs
 from ledgerflow.platform.sessions import Session
+
+_audit_log = logs.get("ledgerflow.audit")
 
 PENDING_TTL_SECS = 300
 
@@ -44,6 +47,13 @@ class Pending:
     expires: float
 
 
+def _as_pending(p) -> Pending | None:
+    """Pending actions come back from the Redis session store as plain dicts."""
+    if p is None or isinstance(p, Pending):
+        return p
+    return Pending(**p)
+
+
 Executor = Callable[..., Awaitable[dict]]
 
 
@@ -62,6 +72,11 @@ class AuditLog:
              session.customer_id, session.workflow_id, action, event, token, idem,
              json.dumps(params or {}, default=str), json.dumps(result or {}, default=str)[:4000]))
         self.conn.commit()
+        # Durable, instance-independent copy: Cloud Logging, routed by a log sink to a
+        # locked bucket / BigQuery. The local table serves the activity panel.
+        logs.event(_audit_log, "audit", audit_event=event, action=action, workflow=session.workflow_id,
+                   customer=session.customer_id, session=logs.session_hash(session.id), token=token,
+                   idempotency_key=idem, request_id=(result or {}).get("request_id"))
 
     def for_customer(self, customer_id: str, limit: int = 50) -> list[dict]:
         return [dict(r) for r in self.conn.execute(
@@ -90,7 +105,7 @@ class ActionService:
         token = (token or "").strip().upper()
         if token in session.completed_actions:
             return {**session.completed_actions[token], "replayed": True}
-        p: Pending | None = session.pending_actions.get(token)
+        p = _as_pending(session.pending_actions.get(token))
         if p is None:
             return {"ok": False, "error": "No pending request with that confirmation ID. Propose the action first."}
         if time.time() > p.expires:
@@ -115,7 +130,7 @@ class ActionService:
         return result
 
     def cancel(self, session: Session, token: str) -> dict:
-        p = session.pending_actions.pop((token or "").strip().upper(), None)
+        p = _as_pending(session.pending_actions.pop((token or "").strip().upper(), None))
         if p:
             self.audit.write(session, p.action, "cancelled", p.token)
             return {"ok": True, "cancelled": p.action}

@@ -31,8 +31,8 @@ a lender's real customers. Each control names the spec that tests it (`specs/`, 
 
 | Phase | Work | Why | Effort |
 |---|---|---|---|
-| P1 | **Sessions and pending actions → Memorystore (Redis)**: implement `SessionStore` and `RateLimiter` over Redis; remove `--max-instances=1`; keep WebSocket affinity | The only blocker to horizontal scale and zero-downtime deploys | 2–3 days |
-| P1 | **Audit → Cloud SQL (Postgres)** with an insert-only role, plus a nightly export to BigQuery for compliance queries | Durable, queryable, tamper-evident audit outside the app instance | 1–2 days |
+| P1 ✅ | **Sessions, limits and lockouts → Memorystore (Redis)**: done in code (SPEC-SCL-001, ADR 0005). `SERVICE_ROLE=gateway` runs stateless and autoscaled; `SERVICE_ROLE=systems` runs the simulated systems as a private service with an ID token plus internal token. `scripts/deploy_scaleout.sh` provisions it (not yet run: cost approval) | Removes the single-instance limit; a lost instance loses no session | done |
+| P1 | **Audit → Cloud SQL (Postgres)** with an insert-only role. Interim: every audit event is already a structured Cloud Logging entry (SPEC-SCL-002.5); add a log sink to a retention-locked bucket / BigQuery | Queryable, tamper-evident audit outside the app instance | 1–2 days |
 | P1 | **Real systems behind connectors**: replace `/mock/*` with service URLs; mTLS or IAM-authenticated calls (ID tokens) per system; keep the internal-token pattern for anything co-located | Connectors already speak HTTP with typed errors, so this is configuration and auth | per system |
 | P1 | **Identity**: OTP via SMS/WhatsApp provider, or the lender's IdP (OIDC) for app users; step-up OTP before write actions | DOB + phone is weak knowledge-based auth | 2 days |
 | P2 | **OpenTelemetry**: export the existing spans (turn → LLM → tool → connector) to Cloud Trace; SLO alerts on turn latency, LLM error rate, breaker-open events | Same span model as `telemetry.py`; swap the exporter | 1 day |

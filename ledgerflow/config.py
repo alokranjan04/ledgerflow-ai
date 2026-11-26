@@ -63,5 +63,19 @@ LOG_LEVEL = env("LOG_LEVEL", "INFO")
 GCP_PROJECT = env("GOOGLE_CLOUD_PROJECT") or env("GCP_PROJECT")
 
 
+# ---- Scale-out ------------------------------------------------------------
+# all      : gateway + simulated systems in one process (single instance, default)
+# gateway  : stateless gateway; systems reached at MOCK_BASE_URL; state in Redis
+# systems  : only the simulated enterprise systems (/mock/*), internal callers only
+SERVICE_ROLE = env("SERVICE_ROLE", "all").lower()
+# Shared state across instances (Memorystore). Empty = in-process state.
+REDIS_URL = env("REDIS_URL")
+# Shared secret between gateway and systems service. Empty in "all" = random per process.
+INTERNAL_TOKEN = env("INTERNAL_TOKEN")
+# When the systems service is private on Cloud Run, the gateway sends a Google ID
+# token for this audience (the systems service URL). Empty = no ID token.
+SYSTEMS_AUDIENCE = env("SYSTEMS_AUDIENCE")
+
+
 def deployed() -> bool:
     return bool(PUBLIC_URL)

@@ -46,7 +46,7 @@ async def env(mocks, tmp_path):
     wfs = load_workflows()
 
     async def login(phone: str, dob: str, workflow: str = "loan_servicing", mode: str = "text"):
-        s = store.create(workflow)
+        s = await store.create(workflow)
         res = await common_tools.verify(s, con, phone, dob)
         assert res["ok"], res
         return s, ToolContext(s, con, actions, Trace(), AS_OF, mode=mode)

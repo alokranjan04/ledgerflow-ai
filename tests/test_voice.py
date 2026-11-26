@@ -128,7 +128,7 @@ async def test_voice_grounding_monitor_flags_unsupported_figure(env, monkeypatch
 
 @pytest.mark.req("REQ-VOX-001.7")
 async def test_phone_call_hangs_up_after_goodbye(env, monkeypatch):
-    s = env["store"].create("loan_servicing", "phone")
+    s = await env["store"].create("loan_servicing", "phone")
 
     async def script(ws, seen):
         await ws.send(json.dumps({"toolCall": {"functionCalls": [{"id": "e", "name": "end_call", "args": {}}]}}))
