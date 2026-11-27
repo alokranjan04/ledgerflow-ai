@@ -718,6 +718,18 @@
   ],
   "outcome": "passed"
  },
+ "tests/test_text_agent.py::test_answer_carries_plain_language_steps_built_from_tool_data": {
+  "reqs": [
+   "REQ-UI-001.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_text_agent.py::test_step_summaries_for_guardrails": {
+  "reqs": [
+   "REQ-UI-001.5"
+  ],
+  "outcome": "passed"
+ },
  "tests/test_voice.py::test_browser_voice_turn_tools_bargein_and_context": {
   "reqs": [
    "REQ-VOX-001.1",

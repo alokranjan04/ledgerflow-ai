@@ -22,7 +22,7 @@ import websockets
 from aiohttp import WSMsgType, web
 
 from ledgerflow import config
-from ledgerflow.platform import logs
+from ledgerflow.platform import agentlog, logs
 from ledgerflow.platform.grounding import Grounder
 from ledgerflow.platform.telemetry import METRICS, Trace, mark_engaged
 from ledgerflow.platform.tools import REGISTRY, ToolContext
@@ -292,6 +292,7 @@ class VoiceConversation:
         ctx = ToolContext(self.session, self.connectors, self.actions, self.trace, config.AS_OF, mode=self.tr.mode)
         self.tool_running = True
         t0 = time.perf_counter()
+        await self.tr.event({"type": "agent_step", "step": agentlog.planned([c.get("name", "") for c in calls])})
         for c in calls:
             await self.tr.event({"type": "tool_started", "name": c.get("name")})
         try:
@@ -299,7 +300,8 @@ class VoiceConversation:
                                              for c in calls])
         finally:
             self.tool_running = False
-        METRICS.observe(f"voice.{self.tr.mode}.tool_round", (time.perf_counter() - t0) * 1000)
+        round_ms = (time.perf_counter() - t0) * 1000
+        METRICS.observe(f"voice.{self.tr.mode}.tool_round", round_ms)
         responses = []
         for c, res in zip(calls, results, strict=True):
             self.log(f"tool {c.get('name')} ok={res.data.get('ok', True)}")
@@ -307,6 +309,7 @@ class VoiceConversation:
             self.session.memory.setdefault("tool_results", []).append(res.data)
             await self.tr.event({"type": "tool_finished", "name": c.get("name"), "ok": bool(res.data.get("ok", True)),
                                  "card": res.card})
+            await self.tr.event({"type": "agent_step", "step": agentlog.tool_step(c.get("name", ""), res.data, round_ms)})
             if res.ends_call and not self.end_after_turn:
                 self.end_after_turn = True
                 self.end_requested_at = time.time()

@@ -71,7 +71,7 @@ async def test_chat_websocket_event_protocol(client):
             kinds.append(ev["type"])
             if ev["type"] == "trace":
                 break
-    assert kinds == ["thinking", "tool_started", "tool_finished", "assistant", "trace"]
+    assert kinds == ["thinking", "agent_step", "tool_started", "agent_step", "tool_finished", "assistant", "trace"]
 
 
 @pytest.mark.req("REQ-AGT-001.3")

@@ -121,6 +121,7 @@ function renderWorkflowSwitch() {
   };
   const wf = state.cfg.workflows.find((w) => w.id === state.session.workflow);
   const sugg = isHindi() && wf?.suggestions_hi?.length ? wf.suggestions_hi : (wf?.suggestions || []);
+  $('#suggestions').classList.remove('hidden');
   $('#suggestions').innerHTML = sugg.map((s) => `<button>${esc(s)}</button>`).join('');
   $('#suggestions').onclick = (e) => { const b = e.target.closest('button'); if (b) send(b.textContent); };
 }
@@ -193,6 +194,24 @@ function toolFinished(ev) {
   if (d) { d.className = `toolchip done ${ev.ok ? '' : 'fail'}`; d.innerHTML = `${ev.ok ? '✓' : '⚠'} ${esc(TOOL_LABELS[ev.name] || ev.name)}${ev.ok ? '' : ' — unavailable'}`; }
   if (ev.card) renderCard(ev.card);
   if (ev.name === 'confirm_action' || ev.name === 'cancel_action') loadActivity();
+}
+
+// ------------------------------------------------------------------ agent activity (how the answer was made)
+const STEP_ICON = { plan: '◆', tool: '✓', check: '✓', done: '●' };
+function stepHtml(st) {
+  const icon = st.ok === false ? '⚠' : STEP_ICON[st.kind] || '•';
+  const meta = [st.systems, st.ms != null ? `${st.ms} ms` : ''].filter(Boolean).join(' · ');
+  const items = st.items?.length ? `<ul>${st.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : '';
+  return `<li class="step ${esc(st.kind)} ${st.ok === false ? 'warn' : ''}"><span class="step-icon" aria-hidden="true">${icon}</span>
+    <div><b>${esc(st.text)}</b>${meta ? ` <span class="muted">${esc(meta)}</span>` : ''}
+    ${st.result ? `<div class="step-result">${esc(st.result)}</div>` : ''}${items}</div></li>`;
+}
+function addSteps(steps) {
+  const tools = steps.filter((s) => s.kind === 'tool').length;
+  const d = document.createElement('details');
+  d.className = 'agent-steps';
+  d.innerHTML = `<summary>How I got this answer · ${tools ? `${tools} system check${tools > 1 ? 's' : ''}, ` : ''}${steps.length} steps</summary><ol class="steps">${steps.map(stepHtml).join('')}</ol>`;
+  $('#messages').appendChild(d); scroll();
 }
 
 // ------------------------------------------------------------------ cards
@@ -305,6 +324,7 @@ function send(text) {
   if (state.voice) { state.voice.ws.send(JSON.stringify({ type: 'text', text })); addMsg('user', text, 'voice'); return; }
   if (!state.chat || state.chat.readyState !== 1) { sys('Reconnecting… try again in a moment.', 'warn'); return; }
   addMsg('user', text);
+  $('#suggestions').classList.add('hidden');      // give the conversation the room once it starts
   state.chat.send(JSON.stringify({ type: 'user', text }));
   $('#input').value = '';
 }
@@ -313,11 +333,19 @@ $('#composer').onsubmit = (e) => { e.preventDefault(); send($('#input').value); 
 function onEvent(ev, mode) {
   switch (ev.type) {
     case 'thinking':
-      typingEl = document.createElement('div'); typingEl.className = 'typing'; typingEl.textContent = 'Aria is working on it…';
+      typingEl = document.createElement('div'); typingEl.className = 'typing steps-live';
+      typingEl.innerHTML = '<div class="steps-head"><span class="spinner"></span> Aria is working on it…</div><ol class="steps"></ol>';
       $('#messages').appendChild(typingEl); scroll(); break;
+    case 'agent_step':
+      if (typingEl) { typingEl.querySelector('.steps').insertAdjacentHTML('beforeend', stepHtml(ev.step)); scroll(); }
+      break;
     case 'tool_started': toolStarted(ev.name); if (state.voice) setVoiceState('thinking', `Checking ${TOOL_LABELS[ev.name] || ev.name}…`); break;
     case 'tool_finished': toolFinished(ev); break;
-    case 'assistant': if (typingEl) { typingEl.remove(); typingEl = null; } addMsg('assistant', ev.text); break;
+    case 'assistant':
+      if (typingEl) { typingEl.remove(); typingEl = null; }
+      addMsg('assistant', ev.text);
+      if (ev.steps?.length) addSteps(ev.steps);
+      break;
     case 'trace': renderTrace(ev); loadMetrics(); break;
     case 'error': sys(ev.text, 'warn'); break;
     default: if (mode === 'voice') onVoiceEvent(ev);
@@ -336,8 +364,13 @@ function onVoiceEvent(ev) {
     let el = live[ev.role];
     if (!el) { el = live[ev.role] = addMsg(ev.role, '', 'voice'); el.classList.add('interim'); }
     el.innerHTML = '<span class="mode">🎙 voice</span>' + (ev.role === 'assistant' ? md(ev.text) : `<p>${esc(ev.text)}</p>`);
-    if (ev.final) { el.classList.remove('interim'); live[ev.role] = null; }
+    if (ev.final) { el.classList.remove('interim'); live[ev.role] = null; if (ev.role === 'assistant') live.steps = null; }
     scroll();
+  } else if (ev.type === 'agent_step') {
+    // voice: one "How I got this answer" block per spoken turn, filled as tools run
+    if (!live.steps) { live.steps = document.createElement('details'); live.steps.className = 'agent-steps'; live.steps.open = true;
+      live.steps.innerHTML = '<summary>How I got this answer (voice)</summary><ol class="steps"></ol>'; $('#messages').appendChild(live.steps); }
+    live.steps.querySelector('.steps').insertAdjacentHTML('beforeend', stepHtml(ev.step)); scroll();
   } else if (ev.type === 'interrupted') { stopPlayback(); setVoiceState('', 'Listening… (you interrupted)'); }
   else if (ev.type === 'grounding_warning') sys(`Grounding monitor: unverified figure(s) spoken — ${ev.figures.join(', ')}`, 'warn');
 }

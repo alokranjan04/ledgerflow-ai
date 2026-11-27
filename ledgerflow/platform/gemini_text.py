@@ -15,10 +15,10 @@ from collections.abc import Awaitable, Callable
 import aiohttp
 
 from ledgerflow import config
+from ledgerflow.platform import agentlog, logs
 from ledgerflow.platform import language as lang
-from ledgerflow.platform import logs
 from ledgerflow.platform.connectors import Breaker
-from ledgerflow.platform.grounding import Grounder
+from ledgerflow.platform.grounding import Grounder, extract_numbers
 from ledgerflow.platform.telemetry import METRICS, Trace, mark_engaged
 from ledgerflow.platform.tools import REGISTRY, ToolContext
 
@@ -171,6 +171,16 @@ class TextAgent:
         contents = list(session.history)
         tools_called: list[str] = []
         grounding = "pass"
+        steps: list[dict] = []
+
+        async def step(st: dict) -> None:
+            steps.append(st)
+            await emit({"type": "agent_step", "step": st})
+
+        async def timed(c) -> tuple:
+            t = time.perf_counter()
+            res = await REGISTRY.run(c["name"], c.get("args") or {}, ctx, wf.tools)
+            return res, (time.perf_counter() - t) * 1000
 
         async def run_loop() -> str:
             nonlocal grounding
@@ -185,11 +195,14 @@ class TextAgent:
                     reply = _text(content)
                     break
                 contents.append(content)
+                await step(agentlog.planned([c["name"] for c in calls]))
                 for c in calls:
                     tools_called.append(c["name"])
                     await emit({"type": "tool_started", "name": c["name"]})
-                results = await asyncio.gather(*[
-                    REGISTRY.run(c["name"], c.get("args") or {}, ctx, wf.tools) for c in calls])
+                timed_results = await asyncio.gather(*[timed(c) for c in calls])
+                results = [r for r, _ in timed_results]
+                for c, (res, ms) in zip(calls, timed_results, strict=True):
+                    await step(agentlog.tool_step(c["name"], res.data, ms))
                 parts = []
                 for c, res in zip(calls, results, strict=True):
                     await emit({"type": "tool_finished", "name": c["name"], "ok": bool(res.data.get("ok", True)),
@@ -244,7 +257,10 @@ class TextAgent:
         # Tool call/response pairs stay in history so follow-ups keep their context.
         session.history = contents + [{"role": "model", "parts": [{"text": reply or "…"}]}]
         session.add_transcript("assistant", reply, "text")
-        await emit({"type": "assistant", "text": reply})
+        if outcome == "ok":
+            steps.append(agentlog.verified(len(extract_numbers(reply)), grounding))
+        steps.append(agentlog.answered(total, session.language))
+        await emit({"type": "assistant", "text": reply, "steps": steps})
         await emit({"type": "trace", "mode": "text", "total_ms": round(total, 1), "spans": trace.to_event()})
         return reply
 

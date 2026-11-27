@@ -97,3 +97,35 @@ async def test_llm_outage_is_reported_not_raised(env):
 
 async def _noop(e):
     return None
+
+
+@pytest.mark.req("REQ-UI-001.5")
+async def test_answer_carries_plain_language_steps_built_from_tool_data(env):
+    s, _ = await env["login"](*PRIYA)
+    both = {"role": "model", "parts": [{"functionCall": {"name": "explain_emi_change", "args": {}}},
+                                       {"functionCall": {"name": "simulate_prepayment", "args": {"amount": 50000}}}]}
+    agent, _ = await _agent(env, [both, text("Your EMI went from ₹17,112.63 to ₹17,323.49; prepaying saves ₹21,003.30.")])
+    events = []
+
+    async def emit(e):
+        events.append(e)
+    await agent.turn(s, "Why did my EMI go up and what if I prepay 50,000?", emit)
+    live = [e["step"] for e in events if e["type"] == "agent_step"]
+    final = next(e for e in events if e["type"] == "assistant")["steps"]
+    assert [st["kind"] for st in final] == ["plan", "tool", "tool", "check", "done"]
+    assert final[0]["text"] == "Planned 2 steps (in parallel)" and live == final[:3]
+    emi = next(st for st in final if st["text"].startswith("Compared your EMIs"))
+    assert emi["result"] == "EMI ₹17,112.63 → ₹17,323.49 after the rate moved 10.25% → 11.00% (clause PL-FL-3.4)"
+    assert emi["systems"] == "Loan Management + Policy" and emi["ms"] >= 0
+    assert final[3]["text"] == "Checked 3 figures against system data"
+
+
+@pytest.mark.req("REQ-UI-001.5")
+def test_step_summaries_for_guardrails():
+    from ledgerflow.platform import agentlog
+    assert agentlog.tool_step("confirm_action", {"ok": False, "step_up_required": True, "sent_to": "******0001"}, 5)["result"] \
+        == "Paused for security: a one-time code went to the mobile ending 0001"
+    assert agentlog.tool_step("propose_payment_dispute", {"ok": True, "confirmation_id": "AB12CD34"}, 5)["result"] \
+        == "Waiting for your yes (confirmation ID AB12CD34)"
+    down = agentlog.tool_step("get_payments", {"ok": False, "unavailable": "payments"}, 2500)
+    assert down["ok"] is False and "payments did not respond" in down["result"]
