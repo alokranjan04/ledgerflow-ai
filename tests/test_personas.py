@@ -46,7 +46,7 @@ def test_validation_lists_every_problem_readably(tmp_path):
     with pytest.raises(PersonaError) as e:
         load_personas(f)
     msg = str(e.value)
-    for needle in ("phone must be 10 digits", "dob must be YYYY-MM-DD", "product must be one of",
+    for needle in ("phone must be 10 digits", "dob must be YYYY-MM-DD", "product must be a loan product in data/policies.yaml",
                    "emis_paid must be less than tenure_months", "reserved for the generated", "id L-10005 is used twice",
                    "CARD-5005 is used twice"):
         assert needle in msg, needle

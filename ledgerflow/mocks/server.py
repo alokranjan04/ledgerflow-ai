@@ -96,6 +96,9 @@ class MockSystems:
         sched = build_schedule(Decimal(loan["principal"]), loan["tenure"], date.fromisoformat(loan["first_due"]),
                                [RateChange(date.fromisoformat(h["effective"]), Decimal(h["rate"]), h["reason"]) for h in hist])
         loan["rate_history"] = hist
+        prod = self.q("SELECT name, rate_type FROM products WHERE code=?", loan["product_code"])
+        loan["rate_type"] = prod[0]["rate_type"] if prod else "fixed"
+        loan["product_name"] = prod[0]["name"] if prod else loan["product_code"]
         loan["schedule"] = [r.as_dict() for r in sched.rows]
         loan["as_of"] = self.as_of.isoformat()
         return loan

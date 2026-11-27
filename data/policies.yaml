@@ -1,0 +1,147 @@
+# Product policies (synthetic). This file is the Policy Knowledge system's content:
+# every product's terms, as RULES (numbers the calculators use) and CLAUSES (the text
+# the assistant quotes and cites by ID). It is loaded on every start.
+#
+# Change a value or a clause: edit it here, check the file, restart or redeploy.
+#     python scripts/validate_customers.py       (checks this file and customers.yaml)
+#
+# Add a product: copy a product block, give it a new code, and list the rules its
+# kind needs (below). Customers in data/customers.yaml can then use the new code.
+# A rule that no calculator understands is refused, so a typo never silently does nothing.
+#
+# Rules a LOAN product needs                 (amounts in rupees, *_pct in percent)
+#   foreclosure       EITHER  min_emis_paid, charge_pct, clause                 (no lock-in)
+#                     OR      lock_in_emis, charge_pct_until_24m, charge_pct_after_24m,
+#                             clause_lock_in, clause                            (lock-in, then a charge)
+#   part_prepayment   min_emis_paid, min_amount, max_pct_outstanding_per_fy, charge_pct, clause
+#   bounce_charge     amount, gst (true/false), clause
+#   emi_date_change   allowed_days (list, 1-28), max_per_year, clause
+#   rate_reset        benchmark, frequency, clause                 (floating-rate loans only, required)
+#
+# Rules a CARD product needs (and a short_name such as "Platinum card")
+#   min_due           pct, floor, clause
+#   finance_charge    monthly_pct, clause
+#   dispute           window_days, temporary_credit_working_days, clause
+#
+# Every `clause` must name a clause of the same product. GST is 18% (tax law, not policy).
+
+products:
+  PL-FLOAT:
+    name: Personal Loan (floating rate, EBLR-linked)
+    kind: loan
+    rate_type: floating
+    policy:
+      version: "2026.10"
+      effective: "2026-10-01"
+      rules:
+        foreclosure:
+          min_emis_paid: 1
+          charge_pct: 0
+          clause: PL-FL-5.1
+        part_prepayment:
+          min_emis_paid: 6
+          min_amount: 10000
+          max_pct_outstanding_per_fy: 25
+          charge_pct: 0
+          clause: PL-FL-5.2
+        rate_reset:
+          benchmark: External Benchmark Lending Rate (RBI repo-linked)
+          frequency: quarterly
+          clause: PL-FL-3.4
+        bounce_charge:
+          amount: 500
+          gst: true
+          clause: PL-FL-7.1
+        emi_date_change:
+          allowed_days: [5, 10, 15]
+          max_per_year: 1
+          clause: PL-FL-4.3
+      clauses:
+        PL-FL-3.4: >-
+          The interest rate is linked to the External Benchmark Lending Rate (EBLR). When the RBI repo rate changes,
+          the rate is reset at the next quarterly reset date and the EMI is recalculated over the remaining tenure.
+        PL-FL-4.3: >-
+          The EMI date can be changed to the 5th, 10th or 15th of the month, once per year. Broken-period interest
+          is charged for the shift.
+        PL-FL-5.1: >-
+          Floating-rate loans to individuals carry no foreclosure charge. Foreclosure is allowed any time after
+          the first EMI. The payoff amount is outstanding principal plus interest accrued since the last EMI.
+        PL-FL-5.2: >-
+          Part-prepayment is allowed after 6 EMIs, minimum Rs 10,000, up to 25% of the outstanding principal per
+          financial year, with no charge. The customer chooses to reduce the tenure or reduce the EMI.
+        PL-FL-7.1: >-
+          A failed EMI debit caused by insufficient funds or a cancelled mandate attracts a bounce charge of Rs
+          500 plus GST. No charge applies when the failure is on the bank's side.
+
+  PL-FIX:
+    name: Personal Loan (fixed rate)
+    kind: loan
+    rate_type: fixed
+    policy:
+      version: "2026.04"
+      effective: "2026-04-01"
+      rules:
+        foreclosure:
+          lock_in_emis: 12
+          charge_pct_until_24m: 4
+          charge_pct_after_24m: 2
+          clause_lock_in: PL-FX-6.1
+          clause: PL-FX-6.2
+        part_prepayment:
+          min_emis_paid: 12
+          min_amount: 10000
+          max_pct_outstanding_per_fy: 25
+          charge_pct: 2
+          clause: PL-FX-6.3
+        bounce_charge:
+          amount: 500
+          gst: true
+          clause: PL-FX-7.1
+        emi_date_change:
+          allowed_days: [5, 10, 15]
+          max_per_year: 1
+          clause: PL-FX-4.3
+      clauses:
+        PL-FX-4.3: >-
+          The EMI date can be changed to the 5th, 10th or 15th of the month, once per year.
+        PL-FX-6.1: >-
+          Foreclosure and part-prepayment are not permitted until 12 EMIs have been paid (lock-in).
+        PL-FX-6.2: >-
+          After the lock-in, foreclosure attracts a charge of 4% of the outstanding principal plus GST if the loan
+          is less than 24 months old from disbursal, and 2% plus GST after that.
+        PL-FX-6.3: >-
+          After 12 EMIs, part-prepayment of at least Rs 10,000 and up to 25% of the outstanding principal per
+          financial year is allowed, with a 2% charge plus GST on the amount prepaid.
+        PL-FX-7.1: >-
+          A failed EMI debit caused by insufficient funds or a cancelled mandate attracts a bounce charge of Rs
+          500 plus GST.
+
+  CC-PLAT:
+    name: LedgerFlow Platinum Credit Card
+    short_name: Platinum card
+    kind: card
+    policy:
+      version: "2026.07"
+      effective: "2026-07-01"
+      rules:
+        min_due:
+          pct: 5
+          floor: 200
+          clause: CC-PL-4.1
+        finance_charge:
+          monthly_pct: 3.5
+          clause: CC-PL-4.2
+        dispute:
+          window_days: 60
+          temporary_credit_working_days: 10
+          clause: CC-PL-9.2
+      clauses:
+        CC-PL-4.1: >-
+          The minimum amount due is 5% of the statement balance or Rs 200, whichever is higher, plus any EMI
+          instalments and overdue amounts.
+        CC-PL-4.2: >-
+          Paying less than the total amount due attracts finance charges at 3.5% per month on the unpaid balance
+          from the transaction date.
+        CC-PL-9.2: >-
+          Transactions can be disputed within 60 days of the transaction date. A temporary credit is given within
+          10 working days while the dispute is investigated.

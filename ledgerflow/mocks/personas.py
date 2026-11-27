@@ -9,7 +9,8 @@ from pathlib import Path
 
 import yaml
 
-PRODUCTS = {"PL-FLOAT", "PL-FIX"}
+from ledgerflow.mocks.policies import card_products, load_policies, loan_products
+
 FAILURE_REASONS = {"INSUFFICIENT_FUNDS", "MANDATE_CANCELLED", "BANK_TECHNICAL", "ACCOUNT_FROZEN"}
 ID_RE = {"customer": re.compile(r"^C\d{4}$"), "loan": re.compile(r"^L-\d{5}$"), "card": re.compile(r"^CARD-\d{4}$")}
 
@@ -18,7 +19,7 @@ class PersonaError(ValueError):
     pass
 
 
-def load_personas(path: Path) -> list[dict]:
+def load_personas(path: Path, products: dict | None = None) -> list[dict]:
     try:
         raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
     except yaml.YAMLError as e:
@@ -26,7 +27,7 @@ def load_personas(path: Path) -> list[dict]:
     customers = raw.get("customers")
     if not isinstance(customers, list) or not customers:
         raise PersonaError(f"{path}: needs a non-empty 'customers:' list")
-    errors = validate(customers)
+    errors = validate(customers, products)
     if errors:
         raise PersonaError(f"{path} has {len(errors)} problem(s):\n  - " + "\n  - ".join(errors))
     return customers
@@ -36,7 +37,10 @@ def _num(v) -> bool:
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
-def validate(customers: list[dict]) -> list[str]:
+def validate(customers: list[dict], products: dict | None = None) -> list[str]:
+    """products: the loaded policies (data/policies.yaml by default); loans and cards must use them."""
+    products = products if products is not None else load_policies()
+    loans_ok, cards_ok = loan_products(products), card_products(products)
     errs: list[str] = []
     seen = {"id": set(), "phone": set(), "loan": set(), "card": set()}
     for i, c in enumerate(customers):
@@ -76,16 +80,16 @@ def validate(customers: list[dict]) -> list[str]:
             elif loan["id"] in seen["loan"]:
                 errs.append(f"{lw}: id {loan['id']} is used twice")
             seen["loan"].add(loan.get("id"))
-            if loan.get("product") not in PRODUCTS:
-                errs.append(f"{lw}: product must be one of {sorted(PRODUCTS)}")
+            if loan.get("product") not in loans_ok:
+                errs.append(f"{lw}: product must be a loan product in data/policies.yaml: {sorted(loans_ok)}")
             for f, lo in (("principal", 10_000), ("rate", 1), ("tenure_months", 3), ("emis_paid", 1)):
                 if not _num(loan.get(f)) or loan[f] < lo:
                     errs.append(f"{lw}: '{f}' must be a number >= {lo}")
             if _num(loan.get("emis_paid")) and _num(loan.get("tenure_months")) and loan["emis_paid"] >= loan["tenure_months"]:
                 errs.append(f"{lw}: emis_paid must be less than tenure_months (the loan must still be running)")
             resets = loan.get("rate_resets") or []
-            if resets and loan.get("product") != "PL-FLOAT":
-                errs.append(f"{lw}: rate_resets apply only to PL-FLOAT loans")
+            if resets and loan.get("product") in loans_ok and products[loan["product"]]["rate_type"] != "floating":
+                errs.append(f"{lw}: rate_resets apply only to floating-rate loans")
             for r in resets:
                 if not (_num(r.get("months_ago")) and _num(r.get("rate"))):
                     errs.append(f"{lw}: each rate reset needs months_ago and rate")
@@ -106,6 +110,10 @@ def validate(customers: list[dict]) -> list[str]:
             elif card["id"] in seen["card"]:
                 errs.append(f"{cw}: id {card['id']} is used twice")
             seen["card"].add(card.get("id"))
+            if card.get("product") is not None and card["product"] not in cards_ok:
+                errs.append(f"{cw}: product must be a card product in data/policies.yaml: {cards_ok}")
+            elif not cards_ok:
+                errs.append(f"{cw}: data/policies.yaml has no card product")
             if not re.fullmatch(r"\d{4}", str(card.get("last4", ""))):
                 errs.append(f"{cw}: last4 must be 4 digits in quotes")
             if not _num(card.get("limit")) or card["limit"] < 10_000:

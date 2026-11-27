@@ -93,6 +93,16 @@ def day(iso: str | None, lang: str) -> str:
     return f"{d} {names[m - 1]} {y}"
 
 
+ISO_DATE = re.compile(r"(?<![\w-])(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])(?![\w-])")
+
+
+def readable_dates(text: str, lang: str) -> str:
+    """Tools return ISO dates (2026-12-10); customers read '10 December 2026' (Hindi: '10 दिसंबर 2026').
+    Applied to every text answer after grounding, so the verifier still compares the tool's own value.
+    Date-times and IDs that merely contain digits are left alone."""
+    return ISO_DATE.sub(lambda m: day(m.group(0), lang), text or "")
+
+
 def _t(lang: str, en: str, hi: str, hil: str) -> str:
     return {"hi": hi, "hi-Latn": hil}.get(lang, en)
 

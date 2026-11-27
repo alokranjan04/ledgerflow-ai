@@ -11,6 +11,8 @@ journey, and it must stay coherent on any day it is shown. Code: `ledgerflow/moc
 - **REQ-DAT-001.3** [MUST] THE SYSTEM SHALL place all scenario dates relative to the as-of date, so every scenario holds on any demo day.
 - **REQ-DAT-001.5** [MUST] Named demo customers (identity, loan, rate resets, failed payments, card, duplicate charge, CRM history) SHALL be defined in `data/customers.yaml`, which seeds every mock system and drives the sign-in list, so adding a person needs no code change.
 - **REQ-DAT-001.6** [MUST] THE SYSTEM SHALL validate that file and report every problem by customer and field (formats, duplicates, reserved ID ranges, impossible loan states) instead of failing with a stack trace.
+- **REQ-DAT-001.7** [MUST] Product policies (rules the calculators use and the clauses the assistant cites) SHALL be defined in `data/policies.yaml`, which seeds the Policy system, the bounce charges and card minimum dues, and the products customers may hold, so a value, a clause or a new product built on existing rule types needs no code change.
+- **REQ-DAT-001.8** [MUST] THE SYSTEM SHALL validate that file and report every problem by product, rule and field: unknown rules or fields, missing required rules, clauses that do not exist, percentages outside 0-100, rate resets on fixed-rate products; and customers SHALL only use products the file defines.
 - **REQ-DAT-001.4** [SHOULD] THE SYSTEM SHALL add a background population of about 500 random customers so the systems feel populated. (Evidence: `ledgerflow/mocks/seed.py`)
 
 ## Acceptance criteria

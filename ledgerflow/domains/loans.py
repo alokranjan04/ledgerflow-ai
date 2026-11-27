@@ -57,7 +57,7 @@ async def get_loan_summary(ctx: ToolContext) -> ToolResult:
     nxt = pos["upcoming"][0] if pos["upcoming"] else None
     data = {
         "ok": True, "loan_id": loan["id"], "product": loan["product_code"],
-        "rate_type": "floating" if loan["product_code"] == "PL-FLOAT" else "fixed",
+        "rate_type": loan["rate_type"], "product_name": loan["product_name"],
         "sanctioned_amount": inr(loan["principal"]), "disbursal_date": loan["disbursal_date"],
         "tenure_months": loan["tenure"], "emis_paid": pos["emis_paid"], "emis_remaining": pos["remaining"],
         "current_interest_rate_pct": str(pos["current_rate"]), "outstanding_principal": inr(pos["outstanding"]),
@@ -88,7 +88,7 @@ async def explain_emi_change(ctx: ToolContext) -> ToolResult:
     clause_id = rule["clause"] if rule else None
     if not change:
         data = {"ok": True, "emi_changed": False, "current_emi": inr(pos["current_emi"]), "rate_history": resets,
-                "explanation": "The EMI has not changed; the loan is on a fixed EMI." if loan["product_code"] != "PL-FLOAT"
+                "explanation": "The EMI has not changed; the loan is on a fixed EMI." if loan["rate_type"] != "floating"
                 else "No EMI change in the schedule so far."}
         return ToolResult(data, card={"type": "emi_change", "data": data})
     before, after = change

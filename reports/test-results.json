@@ -888,6 +888,48 @@
   ],
   "outcome": "passed"
  },
+ "tests/test_policies.py::test_a_new_product_and_customer_work_end_to_end_without_code": {
+  "reqs": [
+   "REQ-DAT-001.7"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_policies.py::test_existing_customers_are_unchanged": {
+  "reqs": [
+   "REQ-DAT-001.7"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_policies.py::test_policy_file_problems_are_listed_by_product_rule_and_field": {
+  "reqs": [
+   "REQ-DAT-001.8"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_policies.py::test_customers_may_only_hold_products_the_file_defines": {
+  "reqs": [
+   "REQ-DAT-001.8"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_policies.py::test_amounts_come_back_exact_for_the_decimal_engine": {
+  "reqs": [
+   "REQ-DAT-001.7"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_policies.py::test_dates_read_naturally_in_answers": {
+  "reqs": [
+   "REQ-AGT-002.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_policies.py::test_model_answer_with_iso_date_reaches_the_customer_readable": {
+  "reqs": [
+   "REQ-AGT-002.6"
+  ],
+  "outcome": "passed"
+ },
  "tests/test_scaleout.py::test_session_written_by_one_instance_is_served_by_another": {
   "reqs": [
    "REQ-SCL-001.1",

@@ -301,6 +301,7 @@ class TextAgent:
         log.info("text turn", extra={"fields": {"outcome": outcome, "ms": round(total), "tools": tools_called,
                                                 "grounding": grounding}})
         logs.reset(turn_token)
+        reply = fastlane.readable_dates(reply, session.language)
         # Tool call/response pairs stay in history so follow-ups keep their context.
         session.history = contents + [{"role": "model", "parts": [{"text": reply or "…"}]}]
         session.add_transcript("assistant", reply, "text")

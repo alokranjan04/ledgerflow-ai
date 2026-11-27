@@ -44,9 +44,19 @@ CRM, loan, payment and card systems on every start. Copy a block, give it a new 
 then check the file and restart (or redeploy):
 
 ```bash
-python scripts/validate_customers.py      # lists every problem by customer and field
+python scripts/validate_customers.py      # checks policies + customers; lists every problem by field
 python app.py                             # locally; or scripts/deploy.sh for Cloud Run
 ```
+
+### Change a policy or add a product
+
+Product terms live in [data/policies.yaml](data/policies.yaml): **rules** (the numbers the calculators use, such
+as the bounce charge, prepayment minimum or dispute window) and **clauses** (the text the assistant quotes and
+cites by ID). Edit a value or a clause, or copy a product block under a new code to add a product built on the
+existing rule types; then give customers that product in `data/customers.yaml` (`loan.product`, `card.product`).
+The same check command validates both files: unknown rules or fields, missing rules, clauses that do not exist and
+out-of-range percentages are reported by product, rule and field. A product needing a new *kind* of rule (a
+moratorium, a top-up) needs calculator code in `ledgerflow/domains/`.
 
 ## Demo script
 
