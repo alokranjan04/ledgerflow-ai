@@ -37,6 +37,17 @@ Pick a demo customer on the sign-in screen. All data is synthetic, and dates are
 | Meera Nair | 9800000003 | 1994-07-21 | Fixed rate inside the 12-EMI lock-in |
 | Ananya Iyer | 9800000004 | 1992-02-14 | Credit card with a duplicate charge to dispute |
 
+### Add a demo customer
+
+Customers on the sign-in screen are defined in [data/customers.yaml](data/customers.yaml); the same file seeds the
+CRM, loan, payment and card systems on every start. Copy a block, give it a new `id`, `phone`, loan and card ID,
+then check the file and restart (or redeploy):
+
+```bash
+python scripts/validate_customers.py      # lists every problem by customer and field
+python app.py                             # locally; or scripts/deploy.sh for Cloud Run
+```
+
 ## Demo script
 
 1. **Precise answer** (Priya, text): *"My EMI increased this month. Why? And if I make a ₹50,000 prepayment

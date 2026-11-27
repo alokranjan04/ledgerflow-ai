@@ -444,6 +444,24 @@
   ],
   "outcome": "passed"
  },
+ "tests/test_personas.py::test_adding_a_customer_to_the_yaml_seeds_every_system": {
+  "reqs": [
+   "REQ-DAT-001.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_personas.py::test_validation_lists_every_problem_readably": {
+  "reqs": [
+   "REQ-DAT-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_personas.py::test_shipped_file_reproduces_the_scenarios": {
+  "reqs": [
+   "REQ-DAT-001.5"
+  ],
+  "outcome": "passed"
+ },
  "tests/test_platform.py::test_seed_is_deterministic": {
   "reqs": [
    "REQ-DAT-001.1"

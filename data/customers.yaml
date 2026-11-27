@@ -1,0 +1,106 @@
+# Demo customers (synthetic). This file is the single source for the named personas:
+# the mock bank systems are seeded from it on every start, and the sign-in screen lists
+# every customer with `demo: true`.
+#
+# Add a person: copy a block, give it a new id / phone / loan id, restart the app
+# (or redeploy). `python scripts/validate_customers.py` checks the file first.
+#
+# All dates are RELATIVE to "today" (or LEDGERFLOW_AS_OF), so a scenario such as
+# "the EMI went up this month" holds on any demo day. EMIs fall on the 5th.
+#
+# loan:
+#   product            PL-FLOAT (floating, EBLR-linked) | PL-FIX (fixed rate)
+#   principal          sanctioned amount, rupees
+#   tenure_months      total EMIs
+#   emis_paid          EMIs already due as of today (the latest one is "this month")
+#   rate               rate at sanction, % a year
+#   rate_resets        floating only: [{months_ago, rate, reason}] — effective ~10 days before
+#                      the EMI `months_ago` months back, so the next EMI uses the new rate
+#   failed_payments    [{emis_ago, reason, retry_days}] — emis_ago 0 = the latest EMI;
+#                      reason: INSUFFICIENT_FUNDS | MANDATE_CANCELLED | BANK_TECHNICAL | ACCOUNT_FROZEN
+# card:
+#   last4, limit, duplicate_charge: {merchant, amount} (two identical charges a minute apart)
+# interactions: [{days_ago, channel, summary}] — CRM contact history
+
+customers:
+  - id: C1001
+    name: Priya Sharma
+    phone: "9800000001"
+    dob: "1990-04-12"
+    city: Mumbai
+    segment: salaried
+    demo: true
+    story: "Floating-rate loan: EMI went up after a rate reset, 3 failed debits, penalty-free foreclosure, credit card"
+    loan:
+      id: L-10001
+      product: PL-FLOAT
+      principal: 800000
+      tenure_months: 60
+      emis_paid: 20
+      disbursal_days_before_first_emi: 31
+      rate: 10.50
+      rate_reason: "Sanction rate: EBLR 9.00% + spread 1.50%"
+      rate_resets:
+        - {months_ago: 9, rate: 10.25, reason: "Quarterly EBLR reset after the RBI repo rate cut of 0.25%"}
+        - {months_ago: 1, rate: 11.00, reason: "Quarterly EBLR reset after the RBI repo rate increase of 0.75%"}
+      failed_payments:
+        - {emis_ago: 2, reason: INSUFFICIENT_FUNDS, retry_days: 3}
+        - {emis_ago: 4, reason: BANK_TECHNICAL, retry_days: 2}
+        - {emis_ago: 5, reason: MANDATE_CANCELLED, retry_days: 6}
+    card:
+      id: CARD-5001
+      last4: "4417"
+      limit: 200000
+    interactions:
+      - {days_ago: 40, channel: branch, summary: "Asked why the EMI changed; was told to call back"}
+      - {days_ago: 12, channel: phone, summary: "Reported a failed auto-debit; waited 18 minutes"}
+
+  - id: C1002
+    name: Rahul Verma
+    phone: "9800000002"
+    dob: "1986-11-03"
+    city: Bengaluru
+    segment: self-employed
+    demo: true
+    story: "Fixed-rate loan past lock-in: foreclosure carries a 4% charge"
+    loan:
+      id: L-10002
+      product: PL-FIX
+      principal: 500000
+      tenure_months: 36
+      emis_paid: 14
+      rate: 13.50
+      failed_payments:
+        - {emis_ago: 7, reason: ACCOUNT_FROZEN, retry_days: 4}
+    interactions:
+      - {days_ago: 30, channel: email, summary: "Requested foreclosure charges"}
+
+  - id: C1003
+    name: Meera Nair
+    phone: "9800000003"
+    dob: "1994-07-21"
+    city: Pune
+    segment: salaried
+    demo: true
+    story: "Fixed-rate loan inside the 12-EMI lock-in"
+    loan:
+      id: L-10003
+      product: PL-FIX
+      principal: 300000
+      tenure_months: 24
+      emis_paid: 7
+      rate: 14.00
+
+  - id: C1004
+    name: Ananya Iyer
+    phone: "9800000004"
+    dob: "1992-02-14"
+    city: Chennai
+    segment: salaried
+    demo: true
+    story: "Credit card with a duplicate Croma charge to dispute"
+    card:
+      id: CARD-5002
+      last4: "9021"
+      limit: 150000
+      duplicate_charge: {merchant: Croma Electronics, amount: 18499.00}

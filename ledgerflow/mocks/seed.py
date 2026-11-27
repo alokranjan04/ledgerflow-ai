@@ -12,7 +12,11 @@ import sqlite3
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
+from ledgerflow.config import ROOT, env
 from ledgerflow.finance.loans import RateChange, add_months, build_schedule, money
+from ledgerflow.mocks.personas import load_personas
+
+CUSTOMERS_FILE = ROOT / env("CUSTOMERS_FILE", "data/customers.yaml")
 
 SCHEMA = """
 CREATE TABLE customers(id TEXT PRIMARY KEY, name TEXT, phone TEXT UNIQUE, dob TEXT, email TEXT,
@@ -118,12 +122,18 @@ MERCHANTS = [("Swiggy", 300, 1500), ("Amazon India", 400, 9000), ("Uber", 150, 9
              ("Apollo Pharmacy", 200, 2500), ("BookMyShow", 300, 1600), ("Shell Fuel", 1000, 4000)]
 
 
+def _pct(v) -> Decimal:
+    """YAML turns 11.00 into 11.0; rates are always shown to two decimals."""
+    return Decimal(str(v)).quantize(Decimal("0.01"))
+
+
 def _last_due_on_or_before(as_of: date, day: int = 5) -> date:
     d = date(as_of.year, as_of.month, day)
     return d if d <= as_of else add_months(d, -1)
 
 
-def seed(conn: sqlite3.Connection, as_of: date, n_random: int = 500, rng_seed: int = 42) -> None:
+def seed(conn: sqlite3.Connection, as_of: date, n_random: int = 500, rng_seed: int = 42,
+         personas: list[dict] | None = None) -> None:
     conn.executescript(SCHEMA)
     for code, p in PRODUCTS.items():
         conn.execute("INSERT INTO products VALUES(?,?,?,?,?)",
@@ -131,44 +141,31 @@ def seed(conn: sqlite3.Connection, as_of: date, n_random: int = 500, rng_seed: i
     rng = random.Random(rng_seed)
     last_due = _last_due_on_or_before(as_of)
 
-    # --- Scenario customers -------------------------------------------------
-    _customer(conn, "C1001", "Priya Sharma", "9800000001", "1990-04-12", "Mumbai", "salaried")
-    _customer(conn, "C1002", "Rahul Verma", "9800000002", "1986-11-03", "Bengaluru", "self-employed")
-    _customer(conn, "C1003", "Meera Nair", "9800000003", "1994-07-21", "Pune", "salaried")
-    _customer(conn, "C1004", "Ananya Iyer", "9800000004", "1992-02-14", "Chennai", "salaried")
-
-    # Priya: floating rate, EMI went up after the latest reset, 3 failed debits in 6 months.
-    first_due = add_months(last_due, -19)
-    disb = first_due - timedelta(days=31)
-    resets = [RateChange(disb, Decimal("10.50"), "Sanction rate: EBLR 9.00% + spread 1.50%"),
-              RateChange(add_months(last_due, -9) - timedelta(days=10), Decimal("10.25"),
-                         "Quarterly EBLR reset after the RBI repo rate cut of 0.25%"),
-              RateChange(add_months(last_due, -1) - timedelta(days=10), Decimal("11.00"),
-                         "Quarterly EBLR reset after the RBI repo rate increase of 0.75%")]
-    _loan(conn, "L-10001", "C1001", "PL-FLOAT", Decimal(800000), disb, first_due, 60, resets, as_of,
-          failures={-2: ("INSUFFICIENT_FUNDS", 3), -4: ("BANK_TECHNICAL", 2), -5: ("MANDATE_CANCELLED", 6)})
-    _card(conn, rng, "CARD-5001", "C1001", "4417", Decimal(200000), as_of, duplicate=False)
-
-    # Rahul: fixed rate, past the 12-EMI lock-in but < 24 months -> 4% foreclosure charge.
-    first_due = add_months(last_due, -13)
-    disb = first_due - timedelta(days=30)
-    _loan(conn, "L-10002", "C1002", "PL-FIX", Decimal(500000), disb, first_due, 36,
-          [RateChange(disb, Decimal("13.50"), "Fixed rate at sanction")], as_of, failures={-7: ("ACCOUNT_FROZEN", 4)})
-
-    # Meera: fixed rate, inside the lock-in.
-    first_due = add_months(last_due, -6)
-    disb = first_due - timedelta(days=30)
-    _loan(conn, "L-10003", "C1003", "PL-FIX", Decimal(300000), disb, first_due, 24,
-          [RateChange(disb, Decimal("14.00"), "Fixed rate at sanction")], as_of, failures={})
-
-    # Ananya: card holder with a duplicate charge to dispute (workflow 2).
-    _card(conn, rng, "CARD-5002", "C1004", "9021", Decimal(150000), as_of, duplicate=True)
-
-    for cid, ts_days, ch, s in [("C1001", 40, "branch", "Asked why the EMI changed; was told to call back"),
-                                ("C1001", 12, "phone", "Reported a failed auto-debit; waited 18 minutes"),
-                                ("C1002", 30, "email", "Requested foreclosure charges")]:
-        conn.execute("INSERT INTO interactions(customer_id,ts,channel,summary) VALUES(?,?,?,?)",
-                     (cid, (as_of - timedelta(days=ts_days)).isoformat(), ch, s))
+    # --- Named personas (data/customers.yaml) --------------------------------
+    for c in personas if personas is not None else load_personas(CUSTOMERS_FILE):
+        _customer(conn, c["id"], c["name"], str(c["phone"]), str(c["dob"]), c.get("city", ""), c.get("segment", ""))
+        loan = c.get("loan")
+        if loan:
+            first_due = add_months(last_due, -(int(loan["emis_paid"]) - 1))
+            disb = first_due - timedelta(days=int(loan.get("disbursal_days_before_first_emi", 30)))
+            hist = [RateChange(disb, _pct(loan["rate"]),
+                               loan.get("rate_reason") or ("Fixed rate at sanction" if loan["product"] == "PL-FIX"
+                                                           else "Rate at sanction"))]
+            for r in loan.get("rate_resets") or []:
+                hist.append(RateChange(add_months(last_due, -int(r["months_ago"])) - timedelta(days=10),
+                                       _pct(r["rate"]), r.get("reason", "Rate reset")))
+            fails = {-int(f["emis_ago"]): (f["reason"], int(f.get("retry_days", 3)))
+                     for f in loan.get("failed_payments") or []}
+            _loan(conn, loan["id"], c["id"], loan["product"], Decimal(str(loan["principal"])), disb, first_due,
+                  int(loan["tenure_months"]), hist, as_of, failures=fails)
+        card = c.get("card")
+        if card:
+            _card(conn, rng, card["id"], c["id"], str(card["last4"]), Decimal(str(card["limit"])), as_of,
+                  duplicate=card.get("duplicate_charge"))
+        for it in c.get("interactions") or []:
+            conn.execute("INSERT INTO interactions(customer_id,ts,channel,summary) VALUES(?,?,?,?)",
+                         (c["id"], (as_of - timedelta(days=int(it["days_ago"]))).isoformat(), it["channel"],
+                          it["summary"]))
 
     # --- Background population ---------------------------------------------
     for i in range(n_random):
@@ -196,7 +193,7 @@ def seed(conn: sqlite3.Connection, as_of: date, n_random: int = 500, rng_seed: i
               first_due, tenure, hist, as_of, failures=fails)
         if rng.random() < 0.3:
             _card(conn, rng, f"CARD-{6000 + i}", cid, f"{rng.randint(1000, 9999)}",
-                  Decimal(rng.choice([50000, 100000, 200000])), as_of, duplicate=False)
+                  Decimal(rng.choice([50000, 100000, 200000])), as_of, duplicate=None)
     conn.commit()
 
 
@@ -248,8 +245,9 @@ def _card(conn, rng, card_id, cid, last4, limit, as_of, duplicate):
         txns.append((ts, m, money(rng.randint(lo * 100, hi * 100) / 100)))
     if duplicate:
         ts = stmt_dt - timedelta(days=6, hours=3, minutes=12)
-        txns.append((ts, "Croma Electronics", money("18499.00")))
-        txns.append((ts + timedelta(minutes=1), "Croma Electronics", money("18499.00")))
+        amount = money(str(duplicate["amount"]))
+        txns.append((ts, duplicate["merchant"], amount))
+        txns.append((ts + timedelta(minutes=1), duplicate["merchant"], amount))
     txns.sort()
     balance = money(sum(a for _, _, a in txns))
     min_due = max(money(balance * Decimal("0.05")), money(200))

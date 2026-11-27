@@ -9,6 +9,8 @@ journey, and it must stay coherent on any day it is shown. Code: `ledgerflow/moc
 - **REQ-DAT-001.1** [MUST] THE SYSTEM SHALL generate the same data for the same seed and as-of date (deterministic).
 - **REQ-DAT-001.2** [MUST] THE SYSTEM SHALL provide named scenario customers: Priya (floating rate, EMI up after the latest reset, 3 failed debits in 6 months, a card), Rahul (fixed rate past the 12-EMI lock-in, under 24 months old), Meera (fixed rate inside the lock-in) and Ananya (a card with a duplicate charge).
 - **REQ-DAT-001.3** [MUST] THE SYSTEM SHALL place all scenario dates relative to the as-of date, so every scenario holds on any demo day.
+- **REQ-DAT-001.5** [MUST] Named demo customers (identity, loan, rate resets, failed payments, card, duplicate charge, CRM history) SHALL be defined in `data/customers.yaml`, which seeds every mock system and drives the sign-in list, so adding a person needs no code change.
+- **REQ-DAT-001.6** [MUST] THE SYSTEM SHALL validate that file and report every problem by customer and field (formats, duplicates, reserved ID ranges, impossible loan states) instead of failing with a stack trace.
 - **REQ-DAT-001.4** [SHOULD] THE SYSTEM SHALL add a background population of about 500 random customers so the systems feel populated. (Evidence: `ledgerflow/mocks/seed.py`)
 
 ## Acceptance criteria

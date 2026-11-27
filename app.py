@@ -30,6 +30,8 @@ from aiohttp import web
 from ledgerflow import config
 from ledgerflow.domains import cards as cards_domain
 from ledgerflow.domains import loans as loans_domain
+from ledgerflow.mocks.personas import demo_customers, load_personas
+from ledgerflow.mocks.seed import CUSTOMERS_FILE
 from ledgerflow.mocks.server import DEFAULT_PROFILES, MockSystems, build_mock_app
 from ledgerflow.platform import common_tools, logs
 from ledgerflow.platform.actions import ActionService, AuditLog
@@ -53,16 +55,8 @@ for stream_ in (sys.stdout, sys.stderr):
 log = logs.get("ledgerflow.app")
 STATIC = config.ROOT / "frontend"
 COOKIE = "lf_sid"
-DEMO_CUSTOMERS = [
-    {"name": "Priya Sharma", "phone": "9800000001", "dob": "1990-04-12",
-     "story": "Floating-rate loan: EMI went up after a rate reset, 3 failed debits, penalty-free foreclosure, credit card"},
-    {"name": "Rahul Verma", "phone": "9800000002", "dob": "1986-11-03",
-     "story": "Fixed-rate loan past lock-in: foreclosure carries a 4% charge"},
-    {"name": "Meera Nair", "phone": "9800000003", "dob": "1994-07-21",
-     "story": "Fixed-rate loan inside the 12-EMI lock-in"},
-    {"name": "Ananya Iyer", "phone": "9800000004", "dob": "1992-02-14",
-     "story": "Credit card with a duplicate Croma charge to dispute"},
-]
+# Sign-in personas come from data/customers.yaml (the same file seeds the mock systems).
+DEMO_CUSTOMERS = demo_customers(load_personas(CUSTOMERS_FILE))
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
        "connect-src 'self' ws: wss:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'none'; form-action 'self'")
 
