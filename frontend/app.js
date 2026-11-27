@@ -371,7 +371,8 @@ function onVoiceEvent(ev) {
     if (!live.steps) { live.steps = document.createElement('details'); live.steps.className = 'agent-steps'; live.steps.open = true;
       live.steps.innerHTML = '<summary>How I got this answer (voice)</summary><ol class="steps"></ol>'; $('#messages').appendChild(live.steps); }
     live.steps.querySelector('.steps').insertAdjacentHTML('beforeend', stepHtml(ev.step)); scroll();
-  } else if (ev.type === 'interrupted') { stopPlayback(); setVoiceState('', 'Listening… (you interrupted)'); }
+  } else if (ev.type === 'filler') { setVoiceState('', 'Checking your account…'); }
+  else if (ev.type === 'interrupted') { stopPlayback(); setVoiceState('', 'Listening… (you interrupted)'); }
   else if (ev.type === 'grounding_warning') sys(`Grounding monitor: unverified figure(s) spoken — ${ev.figures.join(', ')}`, 'warn');
 }
 async function startVoice() {

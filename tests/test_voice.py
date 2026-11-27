@@ -227,3 +227,80 @@ async def test_final_transcript_arrives_before_the_turn_trace(env, monkeypatch):
         server.close()
     kinds = [(e["type"], e.get("final")) for e in tr.events if e["type"] in ("transcript", "trace")]
     assert kinds.index(("transcript", True)) < kinds.index(("trace", None))
+
+
+# ----------------------------------------------------------------- server-side "one moment" clip
+def _tool_turn(heard: str, speak_first: bool = False, tool: str = "get_loan_summary"):
+    async def script(ws, seen):
+        await ws.send(json.dumps({"serverContent": {"inputTranscription": {"text": heard}}}))
+        if speak_first:
+            await ws.send(json.dumps(audio(b"\x22\x00" * 480)))
+        await ws.send(json.dumps({"toolCall": {"functionCalls": [{"id": "c1", "name": tool, "args": {}}]}}))
+        seen["tool"] = await recv_tool_response(ws)
+        await ws.send(json.dumps(audio(b"\x33\x00" * 480)))
+        await ws.send(json.dumps({"serverContent": {"turnComplete": True}}))
+        await asyncio.sleep(0.1)
+    return script
+
+
+async def _run_turn(env, monkeypatch, script, language="auto"):
+    s, _ = await env["login"](*PRIYA)
+    s.language = language
+    server, url, seen = await fake_gemini(script)
+    monkeypatch.setattr(config, "GEMINI_WS_URL", url)
+    tr = FakeTransport()
+    try:
+        await asyncio.wait_for(VoiceConversation(s, env["wfs"]["loan_servicing"], tr, env["con"], env["actions"]).run(), 10)
+    finally:
+        server.close()
+    return tr, seen
+
+
+@pytest.mark.req("REQ-VOX-001.12")
+async def test_one_moment_clip_plays_as_the_tool_starts_then_the_answer(env, monkeypatch):
+    from ledgerflow.voice import fillers
+    METRICS.reset()
+    tr, seen = await _run_turn(env, monkeypatch, _tool_turn("what's my next EMI"))
+    clip = fillers.clip("en")
+    assert clip and b"".join(tr.played).startswith(clip)                    # the clip first ...
+    assert tr.played[-1] == b"\x33\x00" * 480                               # ... then the model's answer
+    kinds = [e["type"] for e in tr.events]
+    assert kinds.index("filler") < kinds.index("tool_started")
+    assert seen["tool"]["functionResponses"][0]["response"]["loan_id"] == "L-10001"   # the tool is untouched
+    lat = METRICS.summary()["latency_ms"]
+    assert lat["voice.voice.user_to_first_audio"]["n"] == 1                 # the wait ends at the clip
+    assert lat["voice.voice.tool_result_to_audio"]["n"] == 1
+    assert METRICS.counters["voice.voice.filler"] == 1
+
+
+@pytest.mark.req("REQ-VOX-001.12")
+async def test_no_clip_when_the_agent_already_spoke_or_is_hanging_up_or_it_is_off(env, monkeypatch):
+    from ledgerflow.voice import fillers
+    clip = fillers.clip("en")
+    tr, _ = await _run_turn(env, monkeypatch, _tool_turn("what's my next EMI", speak_first=True))
+    assert not b"".join(tr.played).startswith(clip) and not any(e["type"] == "filler" for e in tr.events)
+    tr, _ = await _run_turn(env, monkeypatch, _tool_turn("bye", tool="end_call"))
+    assert not any(e["type"] == "filler" for e in tr.events)
+    monkeypatch.setattr(config, "VOICE_FILLER", False)
+    tr, _ = await _run_turn(env, monkeypatch, _tool_turn("what's my next EMI"))
+    assert not any(e["type"] == "filler" for e in tr.events)
+
+
+@pytest.mark.req("REQ-VOX-001.12")
+async def test_clip_follows_the_customers_language(env, monkeypatch):
+    from ledgerflow.voice import fillers
+    tr, _ = await _run_turn(env, monkeypatch, _tool_turn("मेरी अगली EMI कितनी है"))
+    assert b"".join(tr.played).startswith(fillers.clip("hi"))
+    tr, _ = await _run_turn(env, monkeypatch, _tool_turn("next EMI"), language="hi-Latn")
+    assert b"".join(tr.played).startswith(fillers.clip("hi"))
+
+
+@pytest.mark.req("REQ-VOX-001.12")
+def test_clips_are_short_and_carry_no_figures():
+    import re
+
+    from ledgerflow.voice import fillers
+    for lang, text in fillers.PHRASES.items():
+        assert not re.search(r"[\d०-९₹]", text)
+        secs = len(fillers.clip(lang)) / 48000
+        assert 0.5 < secs < 2.5, (lang, secs)

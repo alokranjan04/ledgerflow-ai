@@ -42,6 +42,7 @@ for k in ("PORT", "PUBLIC_URL", "DATA_DIR", "MOCK_BASE_URL"):
 plain = {k: x for k, x in v.items() if k not in secret_keys}
 plain.setdefault("GCP_PROJECT", project)
 plain.setdefault("LOG_JSON", "1")
+plain.setdefault("DURABLE_STORE", "firestore")   # requests + audit survive redeploys (ADR 0006)
 open(os.path.join(out, "env.yaml"), "w").write("".join(f"{k}: {json.dumps(x)}\n" for k, x in plain.items()))
 present = []
 for k in secret_keys & set(v):
@@ -98,10 +99,19 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregi
 
 echo "== runtime service account + secrets"
 ensure_sa
+
+echo "== Firestore (durable requests + audit trail)"
+gcloud services enable firestore.googleapis.com --project="$PROJECT" $A
+gcloud firestore databases describe --database='(default)' --project="$PROJECT" $A >/dev/null 2>&1 || \
+  gcloud firestore databases create --location="$REGION" --type=firestore-native --project="$PROJECT" $A
+gcloud projects add-iam-policy-binding "$PROJECT" --member="serviceAccount:$SA" \
+  --role=roles/datastore.user --condition=None $A >/dev/null
+
 REFS=$(sync_secrets | tail -1)
 
 echo "== deploy (source build)"
-# Single instance on purpose: synthetic systems (SQLite) and sessions live in-process.
+# Single instance on purpose: synthetic systems (SQLite) and sessions live in-process;
+# requests and the audit trail are mirrored to Firestore, so they survive this redeploy.
 # The scale-out path (Memorystore sessions, Cloud SQL audit, N instances) is in docs/PRODUCTION_READINESS.md.
 gcloud run deploy "$SERVICE" --source=. --region="$REGION" --project="$PROJECT" $A \
   --service-account="$SA" --allow-unauthenticated --port=8080 \

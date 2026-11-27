@@ -37,6 +37,7 @@ from ledgerflow.mocks.server import DEFAULT_PROFILES, MockSystems, build_mock_ap
 from ledgerflow.platform import common_tools, logs
 from ledgerflow.platform.actions import ActionService, AuditLog
 from ledgerflow.platform.connectors import DEFAULT_POLICIES, ConnectorError, ConnectorRegistry
+from ledgerflow.platform.durable import build_store
 from ledgerflow.platform.gcp_auth import IdTokenProvider
 from ledgerflow.platform.gemini_text import GeminiREST, TextAgent
 from ledgerflow.platform.language import LANGUAGES
@@ -90,7 +91,9 @@ async def on_startup(app: web.Application) -> None:
     app[K.VOICE_LIMIT] = state.voice_limit
     app[K.LOGIN_GUARD] = state.login_guard
     step_up = StepUp(_sms_sender(), config.STEP_UP_VALID_SECS) if config.STEP_UP_OTP else None
-    actions = ActionService(AuditLog(config.AUDIT_DB_PATH), step_up=step_up)
+    audit = AuditLog(config.AUDIT_DB_PATH, durable=app[K.DURABLE])
+    await _restore(app, audit)
+    actions = ActionService(audit, step_up=step_up)
     common_tools.register_common_actions(actions)
     loans_domain.register_actions(actions)
     cards_domain.register_actions(actions)
@@ -99,9 +102,28 @@ async def on_startup(app: web.Application) -> None:
     app[K.LLM] = GeminiREST(config.GEMINI_API_KEY, config.GEMINI_TEXT_MODEL, [config.GEMINI_FALLBACK_MODEL])
     app[K.AGENT] = TextAgent(app[K.LLM], app[K.WORKFLOWS], app[K.CONNECTORS], actions)
     app[K.LOCKS] = defaultdict(asyncio.Lock)
-    logs.event(log, "ready", role=config.SERVICE_ROLE, state_backend=state.backend, port=config.PORT, as_of=config.AS_OF.isoformat(), workflows=list(app[K.WORKFLOWS]),
+    logs.event(log, "ready", role=config.SERVICE_ROLE, state_backend=state.backend, durable=app[K.DURABLE].backend, port=config.PORT, as_of=config.AS_OF.isoformat(), workflows=list(app[K.WORKFLOWS]),
                text_model=config.GEMINI_TEXT_MODEL, fallback_model=config.GEMINI_FALLBACK_MODEL,
                gemini_key_set=bool(config.GEMINI_API_KEY), admin_token_set=bool(config.ADMIN_TOKEN))
+
+
+async def _restore(app: web.Application, audit: AuditLog | None) -> None:
+    """Bring back service requests and the audit trail from the durable store (Firestore)
+    before serving. A failure is logged loudly but does not stop the service: nothing in
+    Firestore is lost, and new records are still mirrored."""
+    durable = app[K.DURABLE]
+    if not durable.enabled:
+        return
+    try:
+        tickets = await app[K.MOCKS].restore(durable) if K.MOCKS in app else 0
+        trail = await audit.restore() if audit is not None else 0
+        logs.event(log, "durable records restored", backend=durable.backend, requests=tickets, audit_events=trail)
+    except Exception as e:  # noqa: BLE001
+        logs.event(log, "durable restore failed", level=40, backend=durable.backend, error=str(e)[:300])
+
+
+def _durable():
+    return build_store(config.DURABLE_STORE, config.GCP_PROJECT, config.FIRESTORE_DATABASE, config.FIRESTORE_PREFIX)
 
 
 def _sms_sender():
@@ -114,6 +136,7 @@ async def on_cleanup(app: web.Application) -> None:
     await app[K.CONNECTORS].close()
     await app[K.LLM].close()
     await app[K.STATE].close()
+    await app[K.DURABLE].close()
 
 
 async def _session(request: web.Request):
@@ -497,6 +520,7 @@ async def readyz(request):
         except Exception as e:
             checks["state"] = type(e).__name__
     checks["llm_key"] = "ok" if config.GEMINI_API_KEY else "missing"
+    checks["durable"] = request.app[K.DURABLE].backend          # informational: none | firestore
     ready = all(checks[k] == "ok" for k in ("systems", "audit_store")) and checks.get("state", "ok") == "ok"
     return web.json_response({"ready": ready, "checks": checks}, status=200 if ready else 503)
 
@@ -555,6 +579,15 @@ def _systems_app() -> web.Application:
     app = web.Application(middlewares=[request_context, security_headers])
     ms = MockSystems(str(config.DB_PATH), config.AS_OF)
     app[K.MOCKS] = ms
+    app[K.DURABLE] = _durable()
+
+    async def restore(app):
+        await _restore(app, None)
+
+    async def close(app):
+        await app[K.DURABLE].close()
+    app.on_startup.append(restore)
+    app.on_cleanup.append(close)
     app.add_subapp("/mock", build_mock_app(ms, internal_token=config.INTERNAL_TOKEN))
 
     async def ready(request):
@@ -582,6 +615,7 @@ def make_app() -> web.Application:
     # co-located systems answer only this process; in "gateway" it is the secret
     # shared with the systems service.
     app[K.INTERNAL_TOKEN] = config.INTERNAL_TOKEN or secrets.token_urlsafe(24)
+    app[K.DURABLE] = _durable()
     if config.SERVICE_ROLE == "all":
         app[K.MOCKS] = MockSystems(str(config.DB_PATH), config.AS_OF)
         app.add_subapp("/mock", build_mock_app(app[K.MOCKS], internal_token=app[K.INTERNAL_TOKEN]))

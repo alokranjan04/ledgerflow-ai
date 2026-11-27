@@ -23,6 +23,7 @@ from aiohttp import web
 
 from ledgerflow.finance.loans import RateChange, build_schedule
 from ledgerflow.mocks.seed import seed
+from ledgerflow.platform.durable import NullStore
 
 # p50/p95 in milliseconds, error rate 0..1
 DEFAULT_PROFILES = {
@@ -46,6 +47,24 @@ class MockSystems:
             seed(self.conn, as_of)
         self.profiles = json.loads(json.dumps(DEFAULT_PROFILES))
         self.rng = random.Random(rng_seed)
+        self.durable = NullStore()
+
+    # ---- durability (service requests survive redeploys) ---------------------
+    async def restore(self, durable) -> int:
+        """Load service requests from the durable store into a freshly seeded database;
+        then mirror every later change to it."""
+        self.durable = durable
+        rows = await durable.all("tickets")
+        cols = ("id", "customer_id", "type", "status", "summary", "payload", "created", "updated", "idem_key")
+        self.conn.executemany(f"INSERT OR REPLACE INTO tickets({','.join(cols)}) VALUES({','.join('?' * len(cols))})",
+                              [tuple(r.get(c) for c in cols) for r in rows])
+        self.conn.commit()
+        return len(rows)
+
+    async def mirror(self, tid: str) -> None:
+        rows = self.q("SELECT * FROM tickets WHERE id=?", tid)
+        if rows:
+            await self.durable.put("tickets", tid, rows[0])
 
     # ---- latency / faults --------------------------------------------------
     def _delay(self, system: str) -> float:
@@ -188,6 +207,7 @@ def build_mock_app(ms: MockSystems, internal_token: str | None = None) -> web.Ap
                         (tid, body["customer_id"], body["type"], "open", body.get("summary", ""),
                          json.dumps(body.get("payload", {})), now, now, key))
         ms.conn.commit()
+        await ms.mirror(tid)
         return web.json_response(ms.q("SELECT * FROM tickets WHERE id=?", tid)[0], status=201)
 
     @sys_route("ops")
@@ -208,6 +228,7 @@ def build_mock_app(ms: MockSystems, internal_token: str | None = None) -> web.Ap
         ms.conn.commit()
         if not cur.rowcount:
             return not_found("open request")
+        await ms.mirror(tid)
         return web.json_response(ms.q("SELECT * FROM tickets WHERE id=?", tid)[0])
 
     @sys_route("ops")
@@ -229,6 +250,7 @@ def build_mock_app(ms: MockSystems, internal_token: str | None = None) -> web.Ap
         ms.conn.commit()
         if not cur.rowcount:
             return not_found("open request")
+        await ms.mirror(tid)
         row = ms.q("SELECT * FROM tickets WHERE id=?", tid)[0]
         row["accepted_by"] = str(body.get("agent", ""))[:60]
         return web.json_response(row)

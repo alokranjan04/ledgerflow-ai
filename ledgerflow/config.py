@@ -83,6 +83,18 @@ INTERNAL_TOKEN = env("INTERNAL_TOKEN")
 SYSTEMS_AUDIENCE = env("SYSTEMS_AUDIENCE")
 
 
+# Voice: play a pre-recorded "one moment" clip the instant a tool call starts (no model involvement).
+VOICE_FILLER = env("VOICE_FILLER", "1") == "1"
+
+
+# ---- Durable records ----------------------------------------------------------
+# firestore: service requests and the audit trail are mirrored to Firestore and restored
+# on start-up, so a redeploy does not lose them. none: SQLite only (local runs, tests).
+DURABLE_STORE = env("DURABLE_STORE", "none").lower()
+FIRESTORE_DATABASE = env("FIRESTORE_DATABASE", "(default)")
+FIRESTORE_PREFIX = env("FIRESTORE_PREFIX", "ledgerflow")
+
+
 # ---- Step-up verification before write actions ------------------------------
 STEP_UP_OTP = env("STEP_UP_OTP", "1") == "1"
 STEP_UP_VALID_SECS = int(env("STEP_UP_VALID_SECS", "600"))

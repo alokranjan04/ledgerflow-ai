@@ -15,11 +15,13 @@ import json
 import secrets
 import sqlite3
 import time
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from ledgerflow.platform import logs
+from ledgerflow.platform.durable import NullStore
 from ledgerflow.platform.sessions import Session
 from ledgerflow.platform.telemetry import METRICS
 
@@ -58,21 +60,38 @@ def _as_pending(p) -> Pending | None:
 Executor = Callable[..., Awaitable[dict]]
 
 
+AUDIT_COLS = ("ts", "session_hash", "customer_id", "workflow", "action", "event", "token", "idempotency_key",
+              "params", "result")
+
+
 class AuditLog:
-    def __init__(self, path: Path | str):
+    def __init__(self, path: Path | str, durable=None):
         self.conn = sqlite3.connect(str(path), check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(AUDIT_SCHEMA)
+        self.durable = durable or NullStore()
+
+    async def restore(self) -> int:
+        """A fresh container starts with an empty table: reload the trail from the durable store
+        (documents are keyed by time, so they come back in order). Inserts only: the triggers stay."""
+        if self.conn.execute("SELECT COUNT(*) FROM audit").fetchone()[0]:
+            return 0
+        rows = await self.durable.all("audit")
+        self.conn.executemany(f"INSERT INTO audit({','.join(AUDIT_COLS)}) VALUES({','.join('?' * len(AUDIT_COLS))})",
+                              [tuple(r.get(c) for c in AUDIT_COLS) for r in rows])
+        self.conn.commit()
+        return len(rows)
 
     def write(self, session: Session, action: str, event: str, token: str = "", idem: str = "",
               params: dict | None = None, result: dict | None = None) -> None:
-        self.conn.execute(
-            "INSERT INTO audit(ts,session_hash,customer_id,workflow,action,event,token,idempotency_key,params,result)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?)",
-            (time.strftime("%Y-%m-%dT%H:%M:%S"), hashlib.sha256(session.id.encode()).hexdigest()[:12],
-             session.customer_id, session.workflow_id, action, event, token, idem,
-             json.dumps(params or {}, default=str), json.dumps(result or {}, default=str)[:4000]))
+        row = (time.strftime("%Y-%m-%dT%H:%M:%S"), hashlib.sha256(session.id.encode()).hexdigest()[:12],
+               session.customer_id, session.workflow_id, action, event, token, idem,
+               json.dumps(params or {}, default=str), json.dumps(result or {}, default=str)[:4000])
+        self.conn.execute(f"INSERT INTO audit({','.join(AUDIT_COLS)}) VALUES({','.join('?' * len(AUDIT_COLS))})", row)
         self.conn.commit()
+        # Durable copy for the activity panel after a redeploy; create-only, like the table.
+        self.durable.put_soon("audit", f"{time.time_ns():020d}-{uuid.uuid4().hex[:6]}", dict(zip(AUDIT_COLS, row, strict=True)),
+                              create_only=True)
         # Durable, instance-independent copy: Cloud Logging, routed by a log sink to a
         # locked bucket / BigQuery. The local table serves the activity panel.
         logs.event(_audit_log, "audit", audit_event=event, action=action, workflow=session.workflow_id,

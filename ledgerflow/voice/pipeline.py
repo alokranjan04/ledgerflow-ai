@@ -24,8 +24,10 @@ from aiohttp import WSMsgType, web
 from ledgerflow import config
 from ledgerflow.platform import agentlog, logs
 from ledgerflow.platform.grounding import Grounder
+from ledgerflow.platform.language import detect
 from ledgerflow.platform.telemetry import METRICS, Trace, mark_engaged
 from ledgerflow.platform.tools import REGISTRY, ToolContext
+from ledgerflow.voice import fillers
 from ledgerflow.voice.recorder import CallRecorder
 
 with warnings.catch_warnings():   # stdlib audioop is deprecated in 3.12 and gone in 3.13,
@@ -135,6 +137,9 @@ class VoiceConversation:
         self.user_turn_open = False
         self.last_user_speech = 0.0
         self.awaiting_first_audio = False
+        self.awaiting_answer_audio = False
+        self.tools_done_at = 0.0
+        self.last_heard = ""
         self.turn_tool_results: list[dict] = []
         self.trace = Trace()
         self.transcript_start = len(session.transcript)
@@ -214,6 +219,9 @@ class VoiceConversation:
                 if payload.get("type") == "text" and payload.get("text"):
                     self.session.user_turn_seq += 1
                     self.session.add_transcript("user", payload["text"], "voice")
+                    self.last_heard = payload["text"]
+                    self.last_user_speech = time.perf_counter()
+                    self.awaiting_first_audio = True
                     await gem.send(json.dumps({"realtimeInput": {"text": payload["text"]}}))
                 continue
             if self.tr.guard_greeting and not self.greeting_done and time.time() - self.t0 > GREETING_GUARD_MAX_SECS:
@@ -238,6 +246,7 @@ class VoiceConversation:
                     mark_engaged(self.session.memory, self.tr.mode)
                     self.trace = Trace()
                 self.heard_buf += heard
+                self.last_heard = self.heard_buf
                 self.last_user_speech = time.perf_counter()
                 self.awaiting_first_audio = True
                 await self.tr.event({"type": "transcript", "role": "user", "text": self.heard_buf, "final": False})
@@ -254,11 +263,12 @@ class VoiceConversation:
                 if not inline or self.closing:
                     continue
                 pcm24 = base64.b64decode(inline["data"])
-                if self.awaiting_first_audio and self.last_user_speech:
-                    ms = (time.perf_counter() - self.last_user_speech) * 1000
-                    METRICS.observe(f"voice.{self.tr.mode}.user_to_first_audio", ms)
-                    self.trace.mark("first audio after customer speech", ms)
-                    self.awaiting_first_audio = False
+                self.first_audio_heard("first audio after customer speech")
+                if self.awaiting_answer_audio:
+                    ms = (time.perf_counter() - self.tools_done_at) * 1000
+                    METRICS.observe(f"voice.{self.tr.mode}.tool_result_to_audio", ms)
+                    self.trace.mark("answer audio after tool result", ms)
+                    self.awaiting_answer_audio = False
                 self.user_turn_open = False
                 self.agent_play_end = max(self.agent_play_end, time.time()) + len(pcm24) / 48000
                 if self.end_after_turn:
@@ -297,6 +307,8 @@ class VoiceConversation:
         ctx = ToolContext(self.session, self.connectors, self.actions, self.trace, config.AS_OF, mode=self.tr.mode)
         self.tool_running = True
         t0 = time.perf_counter()
+        if self.awaiting_first_audio and not {c.get("name") for c in calls} <= fillers.SKIP_TOOLS:
+            await self.play_filler()
         await self.tr.event({"type": "agent_step", "step": agentlog.planned([c.get("name", "") for c in calls])})
         for c in calls:
             await self.tr.event({"type": "tool_started", "name": c.get("name")})
@@ -322,8 +334,33 @@ class VoiceConversation:
         # Do not resume a dead socket after the phone hung up.
         if not self.closing:
             await gem.send(json.dumps({"toolResponse": {"functionResponses": responses}}))
-        self.awaiting_first_audio = True
-        self.last_user_speech = time.perf_counter()
+        self.awaiting_answer_audio = True
+        self.tools_done_at = time.perf_counter()
+
+    def first_audio_heard(self, label: str) -> None:
+        """The customer's wait ends at the first audio they hear, whether the clip or the answer."""
+        if self.awaiting_first_audio and self.last_user_speech:
+            ms = (time.perf_counter() - self.last_user_speech) * 1000
+            METRICS.observe(f"voice.{self.tr.mode}.user_to_first_audio", ms)
+            self.trace.mark(label, ms)
+        self.awaiting_first_audio = False
+
+    async def play_filler(self) -> None:
+        """A pre-recorded "one moment" in the agent's voice, played as the tool call starts.
+        It carries no figures and does not touch the model, so it cannot cause the invented
+        numbers a model-spoken filler did (REQ-VOX-001.11, VOX-001.12)."""
+        if not config.VOICE_FILLER or self.closing:
+            return
+        language = self.session.language if self.session.language != "auto" else detect(self.last_heard)
+        pcm = fillers.clip(language)
+        if not pcm:
+            return
+        METRICS.incr(f"voice.{self.tr.mode}.filler")
+        self.first_audio_heard("first audio (one-moment clip)")
+        await self.tr.event({"type": "filler", "language": language})
+        self.agent_play_end = max(self.agent_play_end, time.time()) + len(pcm) / 48000
+        for frame in fillers.frames(pcm):
+            await self.tr.play(frame)
 
     async def watchdog(self) -> None:
         while True:
