@@ -21,7 +21,8 @@ CUSTOMERS_FILE = ROOT / env("CUSTOMERS_FILE", "data/customers.yaml")
 
 SCHEMA = """
 CREATE TABLE customers(id TEXT PRIMARY KEY, name TEXT, phone TEXT UNIQUE, dob TEXT, email TEXT,
-  city TEXT, segment TEXT, language TEXT);
+  city TEXT, segment TEXT, language TEXT, status TEXT DEFAULT 'active', demo INTEGER DEFAULT 0,
+  story TEXT DEFAULT '', source TEXT DEFAULT 'generated');
 CREATE TABLE interactions(id INTEGER PRIMARY KEY, customer_id TEXT, ts TEXT, channel TEXT, summary TEXT);
 CREATE TABLE products(code TEXT PRIMARY KEY, name TEXT, kind TEXT, rate_type TEXT, policy TEXT, short_name TEXT);
 CREATE TABLE loans(id TEXT PRIMARY KEY, customer_id TEXT, product_code TEXT, principal TEXT,
@@ -85,31 +86,7 @@ def seed(conn: sqlite3.Connection, as_of: date, n_random: int = 500, rng_seed: i
     # --- Named personas (data/customers.yaml) --------------------------------
     default_card = (card_products(products) or [None])[0]
     for c in personas if personas is not None else load_personas(CUSTOMERS_FILE, products):
-        _customer(conn, c["id"], c["name"], str(c["phone"]), str(c["dob"]), c.get("city", ""), c.get("segment", ""))
-        loan = c.get("loan")
-        if loan:
-            first_due = add_months(last_due, -(int(loan["emis_paid"]) - 1))
-            disb = first_due - timedelta(days=int(loan.get("disbursal_days_before_first_emi", 30)))
-            hist = [RateChange(disb, _pct(loan["rate"]),
-                               loan.get("rate_reason") or ("Fixed rate at sanction"
-                                                           if products[loan["product"]]["rate_type"] == "fixed"
-                                                           else "Rate at sanction"))]
-            for r in loan.get("rate_resets") or []:
-                hist.append(RateChange(add_months(last_due, -int(r["months_ago"])) - timedelta(days=10),
-                                       _pct(r["rate"]), r.get("reason", "Rate reset")))
-            fails = {-int(f["emis_ago"]): (f["reason"], int(f.get("retry_days", 3)))
-                     for f in loan.get("failed_payments") or []}
-            _loan(conn, loan["id"], c["id"], loan["product"], Decimal(str(loan["principal"])), disb, first_due,
-                  int(loan["tenure_months"]), hist, as_of, failures=fails, policy=products[loan["product"]]["policy"])
-        card = c.get("card")
-        if card:
-            code = card.get("product") or default_card
-            _card(conn, rng, card["id"], c["id"], str(card["last4"]), Decimal(str(card["limit"])), as_of,
-                  duplicate=card.get("duplicate_charge"), product=code, policy=products[code]["policy"])
-        for it in c.get("interactions") or []:
-            conn.execute("INSERT INTO interactions(customer_id,ts,channel,summary) VALUES(?,?,?,?)",
-                         (c["id"], (as_of - timedelta(days=int(it["days_ago"]))).isoformat(), it["channel"],
-                          it["summary"]))
+        seed_persona(conn, c, products, as_of, rng, source="file")
 
     # --- Background population ---------------------------------------------
     for i in range(n_random):
@@ -142,10 +119,43 @@ def seed(conn: sqlite3.Connection, as_of: date, n_random: int = 500, rng_seed: i
     conn.commit()
 
 
-def _customer(conn, cid, name, phone, dob, city, segment):
-    email = name.lower().replace(" ", ".") + "@example.com"
-    conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?,?)",
-                 (cid, name, phone, dob, email, city, segment, "en"))
+def seed_persona(conn, c: dict, products: dict, as_of: date, rng: random.Random, source: str) -> None:
+    """One named customer (a validated persona: customers.yaml, the admin panel or sign-up) into
+    every system: CRM profile, loan with its schedule and payments, card with its transactions."""
+    last_due = _last_due_on_or_before(as_of)
+    _customer(conn, c["id"], c["name"], str(c["phone"]), str(c["dob"]), c.get("city", ""), c.get("segment", ""),
+              email=c.get("email") or None, demo=bool(c.get("demo")), story=c.get("story", ""), source=source)
+    loan = c.get("loan")
+    if loan:
+        first_due = add_months(last_due, -(int(loan["emis_paid"]) - 1))
+        disb = first_due - timedelta(days=int(loan.get("disbursal_days_before_first_emi", 30)))
+        hist = [RateChange(disb, _pct(loan["rate"]),
+                           loan.get("rate_reason") or ("Fixed rate at sanction"
+                                                       if products[loan["product"]]["rate_type"] == "fixed"
+                                                       else "Rate at sanction"))]
+        for r in loan.get("rate_resets") or []:
+            hist.append(RateChange(add_months(last_due, -int(r["months_ago"])) - timedelta(days=10),
+                                   _pct(r["rate"]), r.get("reason", "Rate reset")))
+        fails = {-int(f["emis_ago"]): (f["reason"], int(f.get("retry_days", 3)))
+                 for f in loan.get("failed_payments") or []}
+        _loan(conn, loan["id"], c["id"], loan["product"], Decimal(str(loan["principal"])), disb, first_due,
+              int(loan["tenure_months"]), hist, as_of, failures=fails, policy=products[loan["product"]]["policy"])
+    card = c.get("card")
+    if card:
+        code = card.get("product") or (card_products(products) or [None])[0]
+        _card(conn, rng, card["id"], c["id"], str(card["last4"]), Decimal(str(card["limit"])), as_of,
+              duplicate=card.get("duplicate_charge"), product=code, policy=products[code]["policy"])
+    for it in c.get("interactions") or []:
+        conn.execute("INSERT INTO interactions(customer_id,ts,channel,summary) VALUES(?,?,?,?)",
+                     (c["id"], (as_of - timedelta(days=int(it["days_ago"]))).isoformat(), it["channel"],
+                      it["summary"]))
+
+
+def _customer(conn, cid, name, phone, dob, city, segment, email=None, demo=False, story="", source="generated"):
+    email = email or name.lower().replace(" ", ".") + "@example.com"
+    conn.execute("INSERT INTO customers(id,name,phone,dob,email,city,segment,language,status,demo,story,source) "
+                 "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                 (cid, name, phone, dob, email, city, segment, "en", "active", int(demo), story, source))
 
 
 def _loan(conn, lid, cid, product, principal, disb, first_due, tenure, history, as_of, failures, policy):

@@ -15,13 +15,12 @@ import json
 import secrets
 import sqlite3
 import time
-import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from ledgerflow.platform import logs
-from ledgerflow.platform.durable import NullStore
+from ledgerflow.platform.durable import NullStore, time_key
 from ledgerflow.platform.sessions import Session
 from ledgerflow.platform.telemetry import METRICS
 
@@ -90,7 +89,7 @@ class AuditLog:
         self.conn.execute(f"INSERT INTO audit({','.join(AUDIT_COLS)}) VALUES({','.join('?' * len(AUDIT_COLS))})", row)
         self.conn.commit()
         # Durable copy for the activity panel after a redeploy; create-only, like the table.
-        self.durable.put_soon("audit", f"{time.time_ns():020d}-{uuid.uuid4().hex[:6]}", dict(zip(AUDIT_COLS, row, strict=True)),
+        self.durable.put_soon("audit", time_key(), dict(zip(AUDIT_COLS, row, strict=True)),
                               create_only=True)
         # Durable, instance-independent copy: Cloud Logging, routed by a log sink to a
         # locked bucket / BigQuery. The local table serves the activity panel.

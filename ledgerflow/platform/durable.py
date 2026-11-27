@@ -13,7 +13,9 @@ DURABLE_STORE=firestore turns it on; the default ("none") keeps local runs and t
 from __future__ import annotations
 
 import asyncio
+import itertools
 import json
+import secrets
 import time
 import urllib.parse
 
@@ -24,6 +26,13 @@ from ledgerflow.platform.telemetry import METRICS
 
 _log = logs.get("ledgerflow.durable")
 SCOPE = "https://www.googleapis.com/auth/datastore"
+_SEQ = itertools.count()
+
+
+def time_key() -> str:
+    """Document ID that sorts in write order: time, then a per-process sequence (two writes can share a
+    clock tick), then a random suffix so instances never collide."""
+    return f"{time.time_ns():020d}-{next(_SEQ) % 1_000_000:06d}-{secrets.token_hex(3)}"
 
 
 class NullStore:

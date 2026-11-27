@@ -69,6 +69,77 @@ $('#login-form').onsubmit = async (e) => {
   enterApp();
 };
 
+// ------------------------------------------------------------------ sign-up
+const errorList = (errors) => `<ul class="errors">${(errors || []).map((e) => `<li>${esc(e)}</li>`).join('')}</ul>`;
+let signupId = '';
+let signupOpts = null;
+async function postJson(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  let data = {};
+  try { data = await r.json(); } catch (e) { data = { errors: ['The service did not answer. Please try again.'] }; }
+  return { ok: r.ok, status: r.status, data };
+}
+async function showSignup() {
+  $('#login').classList.add('hidden'); $('#signup').classList.remove('hidden');
+  $('#signup-form').classList.remove('hidden'); $('#signup-otp').classList.add('hidden');
+  if (signupOpts) return;
+  const r = await fetch('/api/signup/options');
+  signupOpts = await r.json();
+  const opt = (list) => list.map((p) => `<option value="${esc(p.code)}">${esc(p.name)}</option>`).join('');
+  const loans = signupOpts.products.filter((p) => p.kind === 'loan'), cards = signupOpts.products.filter((p) => p.kind === 'card');
+  $('#su-loan-product').innerHTML = opt(loans);
+  $('#su-card-product').innerHTML = opt(cards);
+  $('#su-tenure').innerHTML = signupOpts.tenures.map((t) => `<option value="${t}" ${t === 36 ? 'selected' : ''}>${t} months</option>`).join('');
+  $('#su-limit').innerHTML = signupOpts.card_limits.map((l) => `<option value="${l}">₹${l.toLocaleString('en-IN')}</option>`).join('');
+  $('#su-segment').innerHTML = signupOpts.segments.map((x) => `<option>${esc(x)}</option>`).join('');
+  if (!cards.length) $('#su-has-card').closest('fieldset').classList.add('hidden');
+}
+function showLogin() {
+  $('#signup').classList.add('hidden'); $('#login').classList.remove('hidden');
+}
+$('#to-signup').onclick = showSignup;
+$('#to-login').onclick = showLogin;
+$('#su-back').onclick = () => { $('#signup-otp').classList.add('hidden'); $('#signup-form').classList.remove('hidden'); };
+
+$('#signup-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const form = { name: $('#su-name').value, phone: $('#su-phone').value, dob: $('#su-dob').value, city: $('#su-city').value,
+    email: $('#su-email').value, segment: $('#su-segment').value, consent: $('#su-consent').checked };
+  if ($('#su-has-loan').checked) form.loan = { product: $('#su-loan-product').value, principal: Number($('#su-principal').value),
+    tenure_months: Number($('#su-tenure').value), emis_paid: Number($('#su-paid').value) };
+  if ($('#su-has-card').checked) form.card = { product: $('#su-card-product').value, limit: Number($('#su-limit').value) };
+  const btn = $('#signup-form button[type=submit]'); btn.disabled = true;
+  const r = await postJson('/api/signup/start', form);
+  btn.disabled = false;
+  if (!r.ok) { $('#signup-errors').innerHTML = errorList(r.data.errors); return; }
+  $('#signup-errors').innerHTML = '';
+  signupId = r.data.signup_id;
+  $('#su-sent-to').textContent = r.data.sent_to;
+  const sms = $('#su-sms');
+  if (r.data.demo_code) {
+    sms.innerHTML = `<b>Simulated SMS</b> to ${esc(r.data.sent_to)}: your sign-up code is <span class="otp">${esc(r.data.demo_code)}</span>`;
+    sms.classList.remove('hidden');
+  } else sms.classList.add('hidden');
+  $('#signup-form').classList.add('hidden'); $('#signup-otp').classList.remove('hidden');
+  $('#su-code').value = ''; $('#su-code').focus();
+};
+
+$('#signup-otp').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await postJson('/api/signup/verify', { signup_id: signupId, code: $('#su-code').value });
+  if (!r.ok) {
+    $('#signup-otp-errors').innerHTML = errorList(r.data.errors);
+    if (r.data.registered) { $('#login-phone').value = $('#su-phone').value.replace(/\D/g, '').slice(-10); }
+    return;
+  }
+  $('#signup-otp-errors').innerHTML = '';
+  state.session = { name: r.data.customer_name, workflow: r.data.workflow, language: r.data.language || 'auto' };
+  sessionStorage.setItem('lf_session', JSON.stringify(state.session));
+  $('#signup').classList.add('hidden');
+  enterApp();
+  sys('Welcome to LedgerFlow — your account is ready. Your demo accounts are on the left.');
+};
+
 function logout() {
   stopVoice();
   if (state.session) fetch('/api/logout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });

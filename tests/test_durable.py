@@ -190,3 +190,11 @@ def test_durability_is_opt_in_rest_based_and_needs_a_project():
         build_store("firestore", "", "(default)", "lf")
     with pytest.raises(SystemExit):
         build_store("dynamo", "p", "(default)", "lf")
+
+
+@pytest.mark.req("REQ-DUR-001.3")
+def test_time_keys_sort_in_write_order_even_within_one_clock_tick(monkeypatch):
+    from ledgerflow.platform import durable
+    monkeypatch.setattr(durable.time, "time_ns", lambda: 1_000)          # a frozen clock
+    keys = [durable.time_key() for _ in range(50)]
+    assert keys == sorted(keys) and len(set(keys)) == 50

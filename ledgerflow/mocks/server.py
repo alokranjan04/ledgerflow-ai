@@ -22,7 +22,12 @@ from decimal import Decimal
 from aiohttp import web
 
 from ledgerflow.finance.loans import RateChange, build_schedule
+from ledgerflow.mocks import seed as seed_mod
+from ledgerflow.mocks.admin import AdminService, schema
+from ledgerflow.mocks.personas import load_personas
+from ledgerflow.mocks.policies import load_policies
 from ledgerflow.mocks.seed import seed
+from ledgerflow.platform import logs
 from ledgerflow.platform.durable import NullStore
 
 # p50/p95 in milliseconds, error rate 0..1
@@ -43,17 +48,28 @@ class MockSystems:
         self.conn.row_factory = sqlite3.Row
         exists = self.conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='customers'").fetchone()
+        # Products as shipped (data/policies.yaml) and as live (after admin changes).
+        self.file_products = load_policies()
         if not exists:
-            seed(self.conn, as_of)
+            seed(self.conn, as_of, products=self.file_products,
+                 personas=load_personas(seed_mod.CUSTOMERS_FILE, self.file_products))
+        self.products = {r["code"]: {"name": r["name"], "kind": r["kind"], "rate_type": r["rate_type"],
+                                     **({"short_name": r["short_name"]} if r["kind"] == "card" else {}),
+                                     "policy": json.loads(r["policy"])}
+                         for r in self.conn.execute("SELECT * FROM products").fetchall()}
         self.profiles = json.loads(json.dumps(DEFAULT_PROFILES))
         self.rng = random.Random(rng_seed)
         self.durable = NullStore()
+        self.admin = AdminService(self)
 
     # ---- durability (service requests survive redeploys) ---------------------
     async def restore(self, durable) -> int:
         """Load service requests from the durable store into a freshly seeded database;
         then mirror every later change to it."""
         self.durable = durable
+        counts = await self.admin.restore(durable)          # products and customers changed in the admin panel
+        if any(counts.values()):
+            logs.event(logs.get("ledgerflow.admin"), "admin changes restored", **counts)
         rows = await durable.all("tickets")
         cols = ("id", "customer_id", "type", "status", "summary", "payload", "created", "updated", "idem_key")
         self.conn.executemany(f"INSERT OR REPLACE INTO tickets({','.join(cols)}) VALUES({','.join('?' * len(cols))})",
@@ -136,13 +152,13 @@ def build_mock_app(ms: MockSystems, internal_token: str | None = None) -> web.Ap
 
     @sys_route("crm")
     async def crm_lookup(req):
-        rows = ms.q("SELECT id, name FROM customers WHERE phone=?", req.query.get("phone", "")[-10:])
+        rows = ms.q("SELECT id, name FROM customers WHERE phone=? AND status='active'", req.query.get("phone", "")[-10:])
         return web.json_response(rows[0]) if rows else not_found("customer")
 
     @sys_route("crm")
     async def crm_verify(req):
         body = await req.json()
-        rows = ms.q("SELECT id, name FROM customers WHERE phone=? AND dob=?",
+        rows = ms.q("SELECT id, name FROM customers WHERE phone=? AND dob=? AND status='active'",
                     str(body.get("phone", ""))[-10:], str(body.get("dob", "")))
         if not rows:
             return web.json_response({"verified": False}, status=401)
@@ -301,7 +317,95 @@ def build_mock_app(ms: MockSystems, internal_token: str | None = None) -> web.Ap
     r.add_post("/ops/requests/{tid}/accept", accept)
     r.add_get("/cards/customers/{cid}/cards", cards_for_customer)
     r.add_get("/cards/cards/{card}/transactions", card_txns)
+    add_admin_routes(r, ms)
     r.add_get("/admin/faults", get_faults)
     r.add_post("/admin/faults", set_faults)
     r.add_post("/admin/faults/reset", reset_faults)
     return app
+
+
+def add_admin_routes(r, ms: MockSystems) -> None:
+    """Back-office API (products and customers). Internal callers only, like everything under /mock."""
+    adm = ms.admin
+
+    def reply(res: dict, created: bool = False):
+        if res.get("ok"):
+            return web.json_response(res, status=201 if created else 200)
+        return web.json_response(res, status=404 if res.get("not_found") else 422)
+
+    async def body(req) -> dict:
+        try:
+            b = await req.json()
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            raise web.HTTPBadRequest(text=json.dumps({"ok": False, "errors": ["body must be JSON"]}),
+                                     content_type="application/json") from None
+        if not isinstance(b, dict):
+            raise web.HTTPBadRequest(text=json.dumps({"ok": False, "errors": ["body must be an object"]}),
+                                     content_type="application/json")
+        return b
+
+    async def get_schema(req):
+        return web.json_response(schema())
+
+    async def list_products(req):
+        return web.json_response({"products": adm.list_products()})
+
+    async def get_product(req):
+        p = adm.get_product(req.match_info["code"].upper())
+        return web.json_response(p) if p else web.json_response({"ok": False, "errors": ["no such product"]}, status=404)
+
+    async def save_product(req):
+        b = await body(req)
+        code = req.match_info["code"].upper()
+        existed = code in ms.products
+        return reply(await adm.save_product(code, b.get("spec"), str(b.get("actor", "admin"))[:60]), created=not existed)
+
+    async def revert_product(req):
+        b = await body(req)
+        return reply(await adm.revert_product(req.match_info["code"].upper(), str(b.get("actor", "admin"))[:60]))
+
+    async def delete_product(req):
+        b = await body(req)
+        return reply(await adm.delete_product(req.match_info["code"].upper(), str(b.get("actor", "admin"))[:60]))
+
+    async def list_customers(req):
+        return web.json_response({"customers": adm.list_customers(req.query.get("q", ""), req.query.get("scope", "named"),
+                                                                  req.query.get("demo") == "1",
+                                                                  int(req.query.get("limit", "50") or 50))})
+
+    async def get_customer(req):
+        c = adm.get_customer(req.match_info["cid"].upper())
+        return web.json_response(c) if c else web.json_response({"ok": False, "errors": ["no such customer"]}, status=404)
+
+    async def create_customer(req):
+        b = await body(req)
+        source = b.get("source") if b.get("source") in ("admin", "signup") else "admin"
+        res = await adm.create_customer(b.get("persona") or {}, str(b.get("actor", "admin"))[:60], source,
+                                        dry_run=bool(b.get("dry_run")), check_phone=b.get("check_phone", True) is not False)
+        return reply(res, created=not res.get("dry_run"))
+
+    async def update_customer(req):
+        b = await body(req)
+        return reply(await adm.update_customer(req.match_info["cid"].upper(), b.get("profile") or {},
+                                               str(b.get("actor", "admin"))[:60]))
+
+    async def set_status(req):
+        b = await body(req)
+        return reply(await adm.set_status(req.match_info["cid"].upper(), str(b.get("status", "")),
+                                          str(b.get("reason", "")), str(b.get("actor", "admin"))[:60]))
+
+    async def audit(req):
+        return web.json_response({"entries": adm.audit_log(int(req.query.get("limit", "100") or 100))})
+
+    r.add_get("/admin/schema", get_schema)
+    r.add_get("/admin/products", list_products)
+    r.add_get("/admin/products/{code}", get_product)
+    r.add_post("/admin/products/{code}", save_product)
+    r.add_post("/admin/products/{code}/revert", revert_product)
+    r.add_post("/admin/products/{code}/delete", delete_product)
+    r.add_get("/admin/customers", list_customers)
+    r.add_post("/admin/customers", create_customer)
+    r.add_get("/admin/customers/{cid}", get_customer)
+    r.add_post("/admin/customers/{cid}", update_customer)
+    r.add_post("/admin/customers/{cid}/status", set_status)
+    r.add_get("/admin/audit", audit)

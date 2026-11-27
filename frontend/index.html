@@ -20,10 +20,60 @@
         <button class="btn primary" type="submit">Verify &amp; continue</button>
         <p id="login-error" class="error" role="alert"></p>
       </form>
+      <p class="switch-link">New to LedgerFlow? <button type="button" id="to-signup">Create an account</button></p>
       <div class="demo">
         <div class="demo-title">Demo customers <span class="muted">(synthetic data)</span></div>
         <div id="demo-list" class="demo-list"></div>
       </div>
+    </div>
+  </section>
+
+  <!-- Sign-up -->
+  <section id="signup" class="login hidden" aria-labelledby="signup-title">
+    <div class="login-card">
+      <div class="brand big"><span class="logo" aria-hidden="true"></span>LedgerFlow <span class="brand-ai">AI</span></div>
+      <h1 id="signup-title">Create your account</h1>
+      <p class="muted">We will send a one-time code to your mobile to confirm it is yours. This is a demo: the
+        accounts you choose below are synthetic, so you can try the assistant on them.</p>
+      <form id="signup-form" autocomplete="off" novalidate>
+        <label>Full name<input id="su-name" required maxlength="80" autocomplete="name"></label>
+        <label>Mobile number<input id="su-phone" inputmode="numeric" required maxlength="14" placeholder="10-digit mobile"></label>
+        <label>Date of birth<input id="su-dob" type="date" required></label>
+        <label>City<input id="su-city" maxlength="40"></label>
+        <label>Email <span class="muted">(optional)</span><input id="su-email" type="email" maxlength="120"></label>
+        <label>Employment<select id="su-segment"></select></label>
+        <div class="signup-accounts">
+          <fieldset>
+            <legend><label class="check"><input id="su-has-loan" type="checkbox" checked> Personal loan (demo)</label></legend>
+            <div class="row">
+              <label>Product<select id="su-loan-product"></select></label>
+              <label>Amount (₹)<input id="su-principal" type="number" min="50000" max="4000000" step="10000" value="500000"></label>
+              <label>Tenure<select id="su-tenure"></select></label>
+              <label>EMIs already paid<input id="su-paid" type="number" min="1" value="6"></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend><label class="check"><input id="su-has-card" type="checkbox"> Credit card (demo)</label></legend>
+            <div class="row">
+              <label>Card<select id="su-card-product"></select></label>
+              <label>Credit limit<select id="su-limit"></select></label>
+            </div>
+          </fieldset>
+        </div>
+        <label class="check"><input id="su-consent" type="checkbox"> I agree that LedgerFlow stores these details to set up my
+          demo account and contacts me on this mobile number.</label>
+        <button class="btn primary" type="submit">Send verification code</button>
+        <div id="signup-errors" role="alert"></div>
+      </form>
+      <form id="signup-otp" class="hidden" autocomplete="one-time-code">
+        <p>Enter the 6-digit code sent to <b id="su-sent-to"></b>.</p>
+        <div id="su-sms" class="sms hidden" aria-live="polite"></div>
+        <label>Verification code<input id="su-code" inputmode="numeric" maxlength="7" required autocomplete="one-time-code"></label>
+        <button class="btn primary" type="submit">Verify &amp; create account</button>
+        <button type="button" id="su-back" class="btn ghost">Change details</button>
+        <div id="signup-otp-errors" role="alert"></div>
+      </form>
+      <p class="switch-link">Already a customer? <button type="button" id="to-login">Sign in</button></p>
     </div>
   </section>
 

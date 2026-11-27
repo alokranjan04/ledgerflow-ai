@@ -24,6 +24,7 @@ class ConnectorError(Exception):
     def __init__(self, system: str, msg: str = ""):
         super().__init__(f"{system}: {msg or self.kind}")
         self.system = system
+        self.detail = msg          # the response body for 4xx (validation errors), else a short reason
 
 
 class Timeout(ConnectorError):
@@ -189,7 +190,7 @@ class Connector:
                         method, self.base_url + path, params=params, json=body, headers=headers,
                         timeout=aiohttp.ClientTimeout(total=self.policy.timeout_s)) as resp:
                     if resp.status == 404:
-                        raise NotFound(self.system, path)
+                        raise NotFound(self.system, await resp.text() or path)
                     if resp.status == 401:
                         raise Unauthorized(self.system)
                     if 400 <= resp.status < 500:

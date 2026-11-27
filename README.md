@@ -48,6 +48,16 @@ python scripts/validate_customers.py      # checks policies + customers; lists e
 python app.py                             # locally; or scripts/deploy.sh for Cloud Run
 ```
 
+### Admin panel and sign-up
+
+- **`/admin`** (admin token on a deployed service; your name goes in the change log): edit any product's rules
+  and clauses with the same checks as the YAML file (a new policy version is required when terms change), create,
+  copy, revert or delete products; search customers, edit profiles, put them on the sign-in list, disable or
+  enable sign-in, and create customers with demo accounts. Every change is in the append-only **change log** and
+  survives redeploys (Firestore).
+- **Sign-up** (sign-in screen → *Create an account*): profile plus a demo loan and/or card, confirmed with a
+  one-time code to the mobile (simulated SMS in the PoC), then signed straight in.
+
 ### Change a policy or add a product
 
 Product terms live in [data/policies.yaml](data/policies.yaml): **rules** (the numbers the calculators use, such

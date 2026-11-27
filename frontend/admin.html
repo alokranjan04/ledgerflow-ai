@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LedgerFlow AI — Admin</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true"></span>LedgerFlow <span class="brand-ai">AI</span> · Admin</div>
+    <nav class="segmented" aria-label="Admin sections">
+      <button data-tab="products" aria-pressed="true">Products &amp; policies</button>
+      <button data-tab="customers" aria-pressed="false">Customers</button>
+      <button data-tab="log" aria-pressed="false">Change log</button>
+    </nav>
+    <div class="topbar-right">
+      <span id="who" class="muted"></span>
+      <button id="lock" class="btn ghost">Lock</button>
+    </div>
+  </header>
+
+  <!-- Token gate -->
+  <section id="gate" class="login hidden" aria-labelledby="gate-title">
+    <div class="login-card">
+      <h1 id="gate-title">Admin access</h1>
+      <p class="muted">Enter the admin token. Your name is recorded against every change in the change log.</p>
+      <form id="gate-form" autocomplete="off">
+        <label>Admin token <span class="muted">(not needed when running locally)</span><input id="gate-token" type="password"></label>
+        <label>Your name<input id="gate-user" required maxlength="60" placeholder="e.g. Asha (Policy team)"></label>
+        <button class="btn primary" type="submit">Open admin</button>
+        <p id="gate-error" class="error" role="alert"></p>
+      </form>
+    </div>
+  </section>
+
+  <main id="main" class="admin-wrap hidden">
+    <!-- Products -->
+    <section id="tab-products" aria-label="Products and policies">
+      <div class="admin-cols">
+        <div class="admin-list">
+          <div class="admin-bar"><h2>Products</h2><button id="p-new" class="btn small">New product</button></div>
+          <table class="grid" id="p-table"><thead><tr><th>Code</th><th>Name</th><th>Version</th><th>Source</th><th>Held by</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div class="admin-detail" id="p-editor">
+          <p class="muted">Choose a product to view or edit its rules and clauses, or create a new one.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Customers -->
+    <section id="tab-customers" class="hidden" aria-label="Customers">
+      <div class="admin-cols">
+        <div class="admin-list">
+          <div class="admin-bar">
+            <h2>Customers</h2>
+            <input id="c-q" type="search" placeholder="Name, mobile or ID" aria-label="Search customers">
+            <select id="c-scope" aria-label="Which customers">
+              <option value="named">Named &amp; registered</option>
+              <option value="all">All (incl. generated)</option>
+            </select>
+            <button id="c-new" class="btn small">New customer</button>
+          </div>
+          <table class="grid" id="c-table"><thead><tr><th>ID</th><th>Name</th><th>Mobile</th><th>Accounts</th><th>Status</th><th>Source</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div class="admin-detail" id="c-detail">
+          <p class="muted">Choose a customer to edit their profile, show them on the sign-in screen, or disable sign-in.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Change log -->
+    <section id="tab-log" class="hidden" aria-label="Change log">
+      <div class="admin-bar"><h2>Change log</h2><button id="l-refresh" class="btn small">Refresh</button></div>
+      <p class="muted">Every product and customer change, newest first: who, what and the exact values that changed. Append-only.</p>
+      <table class="grid" id="l-table"><thead><tr><th>Time</th><th>By</th><th>Action</th><th>Target</th><th>Changes</th></tr></thead><tbody></tbody></table>
+    </section>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  </main>
+  <script src="/static/admin.js"></script>
+</body>
+</html>

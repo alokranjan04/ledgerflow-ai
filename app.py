@@ -36,11 +36,12 @@ from ledgerflow.mocks.seed import CUSTOMERS_FILE
 from ledgerflow.mocks.server import DEFAULT_PROFILES, MockSystems, build_mock_app
 from ledgerflow.platform import common_tools, logs
 from ledgerflow.platform.actions import ActionService, AuditLog
-from ledgerflow.platform.connectors import DEFAULT_POLICIES, ConnectorError, ConnectorRegistry
+from ledgerflow.platform.connectors import DEFAULT_POLICIES, ConnectorError, ConnectorRegistry, Invalid, NotFound
 from ledgerflow.platform.durable import build_store
 from ledgerflow.platform.gcp_auth import IdTokenProvider
 from ledgerflow.platform.gemini_text import GeminiREST, TextAgent
 from ledgerflow.platform.language import LANGUAGES
+from ledgerflow.platform.signup import CARD_LIMITS, DEFAULT_RATE, TENURES, Signup, build_persona
 from ledgerflow.platform.state import build_state
 from ledgerflow.platform.stepup import DemoSms, StepUp
 from ledgerflow.platform.telemetry import METRICS, Trace, kpis
@@ -91,6 +92,7 @@ async def on_startup(app: web.Application) -> None:
     app[K.VOICE_LIMIT] = state.voice_limit
     app[K.LOGIN_GUARD] = state.login_guard
     step_up = StepUp(_sms_sender(), config.STEP_UP_VALID_SECS) if config.STEP_UP_OTP else None
+    app[K.SIGNUP] = Signup(_sms_sender())
     audit = AuditLog(config.AUDIT_DB_PATH, durable=app[K.DURABLE])
     await _restore(app, audit)
     actions = ActionService(audit, step_up=step_up)
@@ -164,6 +166,15 @@ async def index(request):
     return web.FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
 
 
+async def _demo_customers(request) -> list[dict]:
+    try:
+        rows = (await request.app[K.CONNECTORS].admin.get("/customers", {"demo": "1", "scope": "all",
+                                                                          "limit": "50"}))["customers"]
+        return [{"name": r["name"], "phone": r["phone"], "dob": r["dob"], "story": r["story"] or ""} for r in rows]
+    except ConnectorError:
+        return DEMO_CUSTOMERS          # the file's list if the systems cannot be asked
+
+
 async def api_config(request):
     wfs = request.app[K.WORKFLOWS]
     return web.json_response({
@@ -172,7 +183,7 @@ async def api_config(request):
                        "suggestions": w.suggestions, "suggestions_hi": w.suggestions_hi}
                       for w in sorted(wfs.values(), key=lambda w: w.id != config.DEFAULT_WORKFLOW)],
         "default_workflow": config.DEFAULT_WORKFLOW,
-        "demo_customers": DEMO_CUSTOMERS,
+        "demo_customers": await _demo_customers(request),
         "voice_enabled": bool(config.GEMINI_API_KEY),
         "languages": [{"code": "auto", "name": "Auto"}] + [{"code": k, "name": v} for k, v in LANGUAGES.items()],
     })
@@ -188,10 +199,17 @@ async def api_login(request):
     wf = body.get("workflow") or config.DEFAULT_WORKFLOW
     if wf not in request.app[K.WORKFLOWS]:
         return web.json_response({"ok": False, "error": "unknown workflow"}, status=400)
-    s = await request.app[K.SESSIONS].create(wf, "web")
-    res = await common_tools.verify(s, request.app[K.CONNECTORS], phone, str(body.get("dob", "")))
-    if not res.get("ok"):
+    resp = await _start_session(request, phone, str(body.get("dob", "")), wf, body.get("language"))
+    if resp.status == 401:
         await guard.record_failure(phone)
+    return resp
+
+
+async def _start_session(request, phone: str, dob: str, wf: str, language=None) -> web.Response:
+    """Verify phone + date of birth against the CRM and set the session cookie."""
+    s = await request.app[K.SESSIONS].create(wf, "web")
+    res = await common_tools.verify(s, request.app[K.CONNECTORS], phone, dob)
+    if not res.get("ok"):
         await request.app[K.SESSIONS].drop(s.id)
         METRICS.incr("auth.login_failed")
         logs.event(log, "login failed", level=30, phone=mask_phone(phone))
@@ -199,8 +217,8 @@ async def api_login(request):
     await request.app[K.SESSIONS].save(s)
     METRICS.incr("auth.login_ok")
     logs.event(log, "login verified", session=logs.session_hash(s.id), customer=s.customer_id)
-    if body.get("language") in LANGUAGES:
-        s.language = body["language"]
+    if language in LANGUAGES:
+        s.language = language
         await request.app[K.SESSIONS].save(s)
     resp = web.json_response({"ok": True, "customer_name": s.customer_name, "workflow": s.workflow_id,
                               "language": s.language})
@@ -468,6 +486,179 @@ async def dashboard_page(request):
 
 
 # ------------------------------------------------------------------ agent desk (hand-offs)
+async def admin_page(request):
+    return web.FileResponse(STATIC / "admin.html", headers={"Cache-Control": "no-cache"})
+
+
+# ---------------------------------------------------------------- admin API (products, customers)
+CODE_PATH = re.compile(r"^[A-Za-z0-9-]{1,30}$")
+CID_PATH = re.compile(r"^[Cc]\d{4}$")
+
+
+def _need_admin(request) -> str:
+    if not admin_ok(request):
+        raise web.HTTPForbidden(text=json.dumps({"error": "admin token required"}), content_type="application/json")
+    return re.sub(r"[^\w .@-]", "", request.headers.get("X-Admin-User", ""))[:60] or "admin"
+
+
+def _errors_from(e: ConnectorError) -> dict:
+    try:
+        d = json.loads(e.detail)
+        if isinstance(d, dict):
+            return d
+    except (TypeError, ValueError):
+        pass
+    return {"ok": False, "errors": [str(e.detail or e.kind)]}
+
+
+async def _systems_admin(request, method: str, path: str, body: dict | None = None, params: dict | None = None):
+    adm = request.app[K.CONNECTORS].admin
+    try:
+        res = await (adm.get(path, params) if method == "GET" else adm.post(path, body or {}))
+    except NotFound as e:
+        return web.json_response(_errors_from(e), status=404)
+    except Invalid as e:
+        return web.json_response(_errors_from(e), status=422)
+    except ConnectorError as e:
+        return web.json_response({"ok": False, "errors": [f"systems: {e.kind}"]}, status=502)
+    return web.json_response(res)
+
+
+def _path(request, key: str, rx) -> str:
+    v = request.match_info[key]
+    if not rx.match(v):
+        raise web.HTTPBadRequest(text=json.dumps({"ok": False, "errors": [f"bad {key}"]}), content_type="application/json")
+    return v.upper()
+
+
+async def _json_body(request) -> dict:
+    try:
+        b = await request.json()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        b = None
+    if not isinstance(b, dict):
+        raise web.HTTPBadRequest(text=json.dumps({"ok": False, "errors": ["body must be a JSON object"]}),
+                                 content_type="application/json")
+    return b
+
+
+async def api_admin_schema(request):
+    _need_admin(request)
+    return await _systems_admin(request, "GET", "/schema")
+
+
+async def api_admin_products(request):
+    _need_admin(request)
+    return await _systems_admin(request, "GET", "/products")
+
+
+async def api_admin_product(request):
+    actor = _need_admin(request)
+    code = _path(request, "code", CODE_PATH)
+    if request.method == "GET":
+        return await _systems_admin(request, "GET", f"/products/{code}")
+    b = await _json_body(request)
+    action = request.match_info.get("action", "")
+    path = f"/products/{code}" + (f"/{action}" if action else "")
+    resp = await _systems_admin(request, "POST", path, {"spec": b.get("spec"), "actor": actor})
+    if resp.status < 300:
+        request.app[K.CONNECTORS]["policy"].cache.clear()     # the assistant uses the new terms at once
+        logs.event(log, "admin product change", action=action or "save", code=code, actor=actor)
+    return resp
+
+
+async def api_admin_customers(request):
+    actor = _need_admin(request)
+    if request.method == "GET":
+        q = {k: request.query[k] for k in ("q", "scope", "limit") if k in request.query}
+        return await _systems_admin(request, "GET", "/customers", params=q)
+    b = await _json_body(request)
+    return await _systems_admin(request, "POST", "/customers", {"persona": b.get("persona"), "actor": actor,
+                                                                "source": "admin"})
+
+
+async def api_admin_customer(request):
+    actor = _need_admin(request)
+    cid = _path(request, "cid", CID_PATH)
+    if request.method == "GET":
+        return await _systems_admin(request, "GET", f"/customers/{cid}")
+    b = await _json_body(request)
+    if request.match_info.get("action") == "status":
+        return await _systems_admin(request, "POST", f"/customers/{cid}/status",
+                                    {"status": b.get("status"), "reason": b.get("reason", ""), "actor": actor})
+    return await _systems_admin(request, "POST", f"/customers/{cid}", {"profile": b.get("profile"), "actor": actor})
+
+
+async def api_admin_audit(request):
+    _need_admin(request)
+    return await _systems_admin(request, "GET", "/audit")
+
+
+# ---------------------------------------------------------------- customer sign-up
+def _client_key(request) -> str:
+    fwd = request.headers.get("X-Forwarded-For", "")
+    return (fwd.split(",")[0].strip() if fwd else request.remote) or "unknown"
+
+
+async def _signup_products(request) -> list[dict]:
+    rows = (await request.app[K.CONNECTORS].admin.get("/products"))["products"]
+    return [{"code": r["code"], "name": r["name"], "kind": r["kind"], "rate_type": r["rate_type"],
+             "short_name": r.get("short_name", "")} for r in rows]
+
+
+async def api_signup_options(request):
+    try:
+        products = await _signup_products(request)
+    except ConnectorError as e:
+        return web.json_response({"ok": False, "errors": [f"systems: {e.kind}"]}, status=502)
+    return web.json_response({"products": products, "tenures": TENURES, "card_limits": CARD_LIMITS,
+                              "rates": DEFAULT_RATE, "segments": ["salaried", "self-employed", "student", "retired",
+                                                                  "other"]})
+
+
+async def api_signup_start(request):
+    signup = request.app[K.SIGNUP]
+    if not signup.allow_start(_client_key(request)):
+        return web.json_response({"ok": False, "errors": ["Too many applications. Try again in 15 minutes."]},
+                                 status=429)
+    form = await _json_body(request)
+    try:
+        persona, errors = build_persona(form, await _signup_products(request))
+    except ConnectorError as e:
+        return web.json_response({"ok": False, "errors": [f"systems: {e.kind}"]}, status=502)
+    if errors:
+        return web.json_response({"ok": False, "errors": errors}, status=422)
+    # Validate everything except "is this number registered" before sending a code (see signup.py).
+    check = await _systems_admin(request, "POST", "/customers", {"persona": persona, "source": "signup",
+                                                                 "dry_run": True, "check_phone": False})
+    if check.status >= 300:
+        return check
+    res = await signup.send_code(persona)
+    return web.json_response(res, status=200 if res["ok"] else 429)
+
+
+async def api_signup_verify(request):
+    b = await _json_body(request)
+    persona, error = request.app[K.SIGNUP].check_code(str(b.get("signup_id", "")), str(b.get("code", "")))
+    if persona is None:
+        return web.json_response({"ok": False, "errors": [error]}, status=400)
+    created = await _systems_admin(request, "POST", "/customers", {"persona": persona, "source": "signup",
+                                                                   "actor": "self-service sign-up"})
+    if created.status >= 300:
+        payload = json.loads(created.body)
+        if any("already registered" in e for e in payload.get("errors", [])):
+            return web.json_response({"ok": False, "registered": True,
+                                      "errors": ["This mobile number is already registered. Please sign in."]},
+                                     status=409)
+        return created
+    METRICS.incr("signup.completed")
+    logs.event(log, "customer signed up", customer=json.loads(created.body)["customer"]["id"])
+    wf = "loan_servicing" if persona.get("loan") else "card_servicing"
+    if wf not in request.app[K.WORKFLOWS]:
+        wf = config.DEFAULT_WORKFLOW
+    return await _start_session(request, persona["phone"], persona["dob"], wf, b.get("language"))
+
+
 async def agent_page(request):
     return web.FileResponse(STATIC / "agent.html", headers={"Cache-Control": "no-cache"})
 
@@ -641,6 +832,21 @@ def make_app() -> web.Application:
     r.add_post("/answer", answer)
     r.add_get("/stream", stream)
     r.add_get("/agent", agent_page)
+    r.add_get("/admin", admin_page)
+    r.add_get("/api/admin/schema", api_admin_schema)
+    r.add_get("/api/admin/products", api_admin_products)
+    r.add_get("/api/admin/products/{code}", api_admin_product)
+    r.add_post("/api/admin/products/{code}", api_admin_product)
+    r.add_post("/api/admin/products/{code}/{action:revert|delete}", api_admin_product)
+    r.add_get("/api/admin/customers", api_admin_customers)
+    r.add_post("/api/admin/customers", api_admin_customers)
+    r.add_get("/api/admin/customers/{cid}", api_admin_customer)
+    r.add_post("/api/admin/customers/{cid}", api_admin_customer)
+    r.add_post("/api/admin/customers/{cid}/{action:status}", api_admin_customer)
+    r.add_get("/api/admin/audit", api_admin_audit)
+    r.add_get("/api/signup/options", api_signup_options)
+    r.add_post("/api/signup/start", api_signup_start)
+    r.add_post("/api/signup/verify", api_signup_verify)
     r.add_get("/dashboard", dashboard_page)
     r.add_get("/api/agent/queue", api_agent_queue)
     r.add_post("/api/agent/accept", api_agent_accept)
