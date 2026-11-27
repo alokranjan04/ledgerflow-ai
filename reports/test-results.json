@@ -1,4 +1,46 @@
 {
+ "tests/e2e/test_ui.py::test_sign_in_account_panel_and_fast_lane_answer_with_card_and_steps": {
+  "reqs": [
+   "REQ-UI-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/e2e/test_ui.py::test_model_outage_fallback_is_visible_and_useful": {
+  "reqs": [
+   "REQ-UI-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/e2e/test_ui.py::test_hindi_language_switch_and_workflow_switch": {
+  "reqs": [
+   "REQ-UI-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/e2e/test_ui.py::test_wrong_details_are_refused": {
+  "reqs": [
+   "REQ-UI-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/e2e/test_ui.py::test_ops_dashboard_and_agent_desk_pages_load": {
+  "reqs": [
+   "REQ-UI-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/e2e/test_ui.py::test_accessibility_no_serious_violations": {
+  "reqs": [
+   "REQ-UI-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/e2e/test_ui.py::test_no_console_errors_on_load": {
+  "reqs": [
+   "REQ-UI-001.6"
+  ],
+  "outcome": "passed"
+ },
  "tests/test_app.py::test_login_account_and_unknown_session": {
   "reqs": [
    "REQ-SEC-001.1",

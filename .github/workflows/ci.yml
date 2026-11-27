@@ -32,7 +32,11 @@ jobs:
       - run: pip install -r requirements-dev.txt pip-audit
       - name: Lint
         run: ruff check .
+      - name: Browser for end-to-end and accessibility tests
+        run: python -m playwright install --with-deps chromium
       - name: Tests + traceability gate (every MUST requirement has a passing test)
+        env:
+          E2E_BROWSER_CHANNEL: ""      # bundled Chromium on the runner (Edge locally)
         run: python scripts/trace_matrix.py
       - name: Dependency vulnerabilities
         run: pip-audit -r requirements.txt --strict

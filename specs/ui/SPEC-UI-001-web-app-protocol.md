@@ -9,7 +9,8 @@ Challenge 1: a usable web app with text and voice that feels like a product. Cod
 - **REQ-UI-001.2** [MUST] The chat WebSocket SHALL emit, per turn: `thinking`, `agent_step` (live), `tool_started`/`tool_finished` (with an optional `card`), `assistant` (with the turn's `steps`), and `trace`.
 - **REQ-UI-001.5** [MUST] Every answer SHALL carry a plain-language account of how it was made: the plan (which steps, in parallel or not), each system checked with what it returned and how long it took, guardrails (awaiting approval, one-time code, request created), the figure check, and the total time; shown live while the assistant works and as "How I got this answer" under the reply, in text and voice. The account is built from tool results and runtime facts only, never from model text.
 - **REQ-UI-001.3** [SHOULD] The voice WebSocket SHALL carry binary PCM16 16 kHz upstream and 24 kHz downstream, plus JSON events (`voice_ready`, `transcript`, `interrupted`, tool events, `grounding_warning`, `error`). (Evidence: `ledgerflow/voice/pipeline.py`, `frontend/app.js`)
-- **REQ-UI-001.4** [SHOULD] The UI SHALL meet basic accessibility: labelled controls, `aria-live` messages, visible focus. (Evidence: `frontend/index.html`)
+- **REQ-UI-001.4** [MUST] The sign-in and chat screens SHALL have no serious or critical axe-core accessibility violations (WCAG 2.x AA rules, including 4.5:1 text contrast).
+- **REQ-UI-001.6** [MUST] Browser end-to-end tests SHALL cover sign-in, an answer with its card and agent steps, the model-outage fallback, the Hindi language switch, the workflow switch, refused sign-in, and the dashboard and agent-desk pages.
 
 ## Interfaces
 `POST /api/login` (sets the `lf_sid` HttpOnly cookie; see SPEC-SEC-002), `POST /api/logout`, `POST /api/workflow`, `GET /api/account`, `GET /api/activity`, `GET /ws/chat`,
