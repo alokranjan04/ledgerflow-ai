@@ -54,6 +54,9 @@ GEMINI_FALLBACK_MODEL = env("GEMINI_FALLBACK_MODEL", "gemini-flash-latest")
 # The tools do the reasoning; the model only routes and phrases, so deep "thinking" adds seconds
 # per call for no accuracy gain (measured: flash default p50 3.0 s vs flash-lite + low 0.7 s).
 GEMINI_THINKING_LEVEL = env("GEMINI_THINKING_LEVEL", "low")
+# Fast lane: single, simple questions (next EMI, failed payments, foreclosure...) answered straight
+# from the systems with no model call. Always used as the fallback when the model is down.
+FAST_LANE = env("FAST_LANE", "1") == "1"
 LLM_TURN_BUDGET_S = float(env("LLM_TURN_BUDGET_S", "30"))
 
 # Abuse limits per session (token buckets).

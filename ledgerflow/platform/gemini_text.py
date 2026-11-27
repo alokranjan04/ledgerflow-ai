@@ -15,7 +15,7 @@ from collections.abc import Awaitable, Callable
 import aiohttp
 
 from ledgerflow import config
-from ledgerflow.platform import agentlog, logs
+from ledgerflow.platform import agentlog, fastlane, logs
 from ledgerflow.platform import language as lang
 from ledgerflow.platform.connectors import Breaker
 from ledgerflow.platform.grounding import Grounder, extract_numbers
@@ -182,6 +182,38 @@ class TextAgent:
             res = await REGISTRY.run(c["name"], c.get("args") or {}, ctx, wf.tools)
             return res, (time.perf_counter() - t) * 1000
 
+        async def fast_lane(strict: bool) -> str | None:
+            """Simple questions (strict) or a model outage (not strict): answer from the systems."""
+            if not session.verified:
+                return None
+            intents = fastlane.route(text, wf.tools, strict=strict)
+            if not intents:
+                return None
+            calls = [{"name": fastlane.INTENTS[i][0], "args": dict(fastlane.INTENTS[i][1])} for i in intents]
+            plan = agentlog.planned([c["name"] for c in calls])
+            plan["text"] = ("Recognised a direct question: answered straight from the systems, no AI model call"
+                            if strict else "AI model unavailable: answered what I could straight from the systems")
+            await step(plan)
+            for c in calls:
+                tools_called.append(c["name"])
+                await emit({"type": "tool_started", "name": c["name"]})
+            timed_results = await asyncio.gather(*[timed(c) for c in calls])
+            parts = []
+            for intent, c, (res, ms) in zip(intents, calls, timed_results, strict=True):
+                await emit({"type": "tool_finished", "name": c["name"], "ok": bool(res.data.get("ok", True)),
+                            "card": res.card})
+                await step(agentlog.tool_step(c["name"], res.data, ms))
+                tool_results.append(res.data)
+                parts.append(fastlane.answer(intent, res.data, session.language))
+            reply = "\n\n".join(p for p in parts if p)
+            if not strict:
+                reply = fastlane.OUTAGE_NOTE.get(session.language, fastlane.OUTAGE_NOTE["en"]) + "\n\n" + reply
+            user_texts = [t["text"] for t in session.transcript if t["role"] == "user"]
+            if GROUNDER.check(reply, tool_results, user_texts):        # templates copy tool values; should never fire
+                METRICS.incr("fastlane.grounding_violation")
+                log.warning("fast lane template produced an unsupported figure", extra={"fields": {"intents": intents}})
+            return reply
+
         async def run_loop() -> str:
             nonlocal grounding
             reply = ""
@@ -236,9 +268,15 @@ class TextAgent:
             METRICS.incr("grounding.checked")
             return reply
 
+        served_from_tools = False
         try:
-            reply = await asyncio.wait_for(run_loop(), timeout=config.LLM_TURN_BUDGET_S)
-            outcome = "ok"
+            fast = (await fast_lane(strict=True)) if config.FAST_LANE and not session.pending_actions else None
+            if fast:
+                reply, outcome, served_from_tools = fast, "fast_lane", True
+                METRICS.incr("fastlane.answered")
+            else:
+                reply = await asyncio.wait_for(run_loop(), timeout=config.LLM_TURN_BUDGET_S)
+                outcome, served_from_tools = "ok", True
         except TimeoutError:
             METRICS.incr("turn.text.budget_exceeded")
             outcome = "budget_exceeded"
@@ -249,6 +287,15 @@ class TextAgent:
             outcome = "llm_unavailable"
             reply = msg("llm_down", session.language)
             trace.mark("llm error", 0, ok=False, detail=str(e)[:120])
+        if outcome in ("budget_exceeded", "llm_unavailable"):
+            try:                                   # degrade: answer what the systems can answer directly
+                fallback = await fast_lane(strict=False)
+            except Exception:
+                fallback = None
+            if fallback:
+                reply, served_from_tools = fallback, True
+                outcome += "_served_from_systems"
+                METRICS.incr("fastlane.outage_served")
         total = (time.perf_counter() - t0) * 1000
         METRICS.observe("turn.text.total", total)
         log.info("text turn", extra={"fields": {"outcome": outcome, "ms": round(total), "tools": tools_called,
@@ -257,7 +304,9 @@ class TextAgent:
         # Tool call/response pairs stay in history so follow-ups keep their context.
         session.history = contents + [{"role": "model", "parts": [{"text": reply or "…"}]}]
         session.add_transcript("assistant", reply, "text")
-        if outcome == "ok":
+        if outcome == "fast_lane":
+            METRICS.observe("turn.text.fast_lane", total)
+        if served_from_tools:
             steps.append(agentlog.verified(len(extract_numbers(reply)), grounding))
         steps.append(agentlog.answered(total, session.language))
         await emit({"type": "assistant", "text": reply, "steps": steps})

@@ -92,6 +92,198 @@
   ],
   "outcome": "passed"
  },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[What's my next EMI?-next_emi]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[When is my EMI due?-next_emi]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[\\u092e\\u0947\\u0930\\u0940 \\u0905\\u0917\\u0932\\u0940 EMI \\u0915\\u092c \\u0939\\u0948?-next_emi]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[Meri agli EMI kab hai?-next_emi]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[Did my last payment go through?-last_payment]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[Any failed payments?-failed_payments]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[\\u092a\\u093f\\u091b\\u0932\\u0947 \\u091b\\u0939 \\u092e\\u0939\\u0940\\u0928\\u094b\\u0902 \\u092e\\u0947\\u0902 \\u0915\\u094c\\u0928 \\u0938\\u0947 \\u092a\\u0947\\u092e\\u0947\\u0902\\u091f \\u092b\\u0947\\u0932 \\u0939\\u0941\\u090f?-failed_payments]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[Am I eligible for foreclosure without a penalty?-foreclosure]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[Why did my EMI go up?-emi_change]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[What are my options?-options]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[What is my outstanding balance?-outstanding]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[My EMI increased this month. Why? And if I prepay \\u20b950,000 today, how much interest would I save?]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[Show me the payments that failed in the last six months and explain what happened.]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[Dispute the September one]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[Yes, go ahead.]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[482913]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[Would paying 20,000 extra reduce my tenure?]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[I want to talk to a person]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[\\u0905\\u0917\\u0930 \\u092e\\u0948\\u0902 \\u092a\\u091a\\u093e\\u0938 \\u0939\\u091c\\u093c\\u093e\\u0930 \\u092a\\u094d\\u0930\\u0940\\u092a\\u0947 \\u0915\\u0930\\u0942\\u0901 \\u0924\\u094b?]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[hello]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_answers_without_the_model_and_is_grounded[who0-What's my next EMI?-expect0]": {
+  "reqs": [
+   "REQ-AGT-005.1",
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_answers_without_the_model_and_is_grounded[who1-Why did my EMI go up?-expect1]": {
+  "reqs": [
+   "REQ-AGT-005.1",
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_answers_without_the_model_and_is_grounded[who2-Any failed payments?-expect2]": {
+  "reqs": [
+   "REQ-AGT-005.1",
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_answers_without_the_model_and_is_grounded[who3-Am I eligible for foreclosure without a penalty?-expect3]": {
+  "reqs": [
+   "REQ-AGT-005.1",
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_answers_without_the_model_and_is_grounded[who4-Am I eligible for foreclosure without a penalty?-expect4]": {
+  "reqs": [
+   "REQ-AGT-005.1",
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_answers_without_the_model_and_is_grounded[who5-Can I close my loan?-expect5]": {
+  "reqs": [
+   "REQ-AGT-005.1",
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_answers_in_hindi": {
+  "reqs": [
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_model_outage_still_answers_what_the_systems_can": {
+  "reqs": [
+   "REQ-AGT-005.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_model_outage_with_nothing_recognisable_says_so": {
+  "reqs": [
+   "REQ-AGT-005.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_steps_aside_while_an_action_awaits_confirmation": {
+  "reqs": [
+   "REQ-AGT-005.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_card_questions_take_the_fast_lane_in_the_card_workflow": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
  "tests/test_finance.py::test_emi_golden_values": {
   "reqs": [
    "REQ-FIN-001.1"

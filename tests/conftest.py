@@ -96,3 +96,10 @@ def pytest_sessionfinish(session):
     out = Path(__file__).resolve().parent.parent / "reports"
     out.mkdir(exist_ok=True)
     (out / "test-results.json").write_text(json.dumps(_RESULTS, indent=1), encoding="utf-8")
+
+
+@pytest.fixture(autouse=True)
+def _model_path_by_default(monkeypatch):
+    """Most tests exercise the model path; fast-lane tests switch it on explicitly."""
+    from ledgerflow import config
+    monkeypatch.setattr(config, "FAST_LANE", False)
