@@ -40,7 +40,7 @@ async def until_turn_complete(ws, seen: dict, cap_s: float = 30) -> None:
             return
         if msg.type == aiohttp.WSMsgType.BINARY:
             seen.setdefault("audio_at", time.perf_counter())
-            if seen.get("tool_done") or not seen["tools"]:
+            if seen.get("tool_done") or not (seen["tools"] or seen.get("filler")):
                 seen.setdefault("answer_at", time.perf_counter())
         elif msg.type == aiohttp.WSMsgType.TEXT:
             ev = json.loads(msg.data)
