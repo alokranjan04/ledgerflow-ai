@@ -27,6 +27,7 @@ from urllib.parse import urlparse
 
 from aiohttp import web
 
+from ledgerflow import appkeys as K
 from ledgerflow import config
 from ledgerflow.domains import cards as cards_domain
 from ledgerflow.domains import loans as loans_domain
@@ -80,25 +81,25 @@ def _is_https(request: web.Request) -> bool:
 
 async def on_startup(app: web.Application) -> None:
     auth = IdTokenProvider(config.SYSTEMS_AUDIENCE) if config.SYSTEMS_AUDIENCE else None
-    app["connectors"] = ConnectorRegistry(config.MOCK_BASE_URL, DEFAULT_POLICIES,
-                                          headers={"X-Internal-Token": app["internal_token"]}, auth=auth)
-    state = build_state(app.get("redis_client"))
-    app["state"] = state
-    app["sessions"] = state.sessions
-    app["chat_limit"] = state.chat_limit
-    app["voice_limit"] = state.voice_limit
-    app["login_guard"] = state.login_guard
+    app[K.CONNECTORS] = ConnectorRegistry(config.MOCK_BASE_URL, DEFAULT_POLICIES,
+                                          headers={"X-Internal-Token": app[K.INTERNAL_TOKEN]}, auth=auth)
+    state = build_state(app.get(K.REDIS_CLIENT))
+    app[K.STATE] = state
+    app[K.SESSIONS] = state.sessions
+    app[K.CHAT_LIMIT] = state.chat_limit
+    app[K.VOICE_LIMIT] = state.voice_limit
+    app[K.LOGIN_GUARD] = state.login_guard
     step_up = StepUp(_sms_sender(), config.STEP_UP_VALID_SECS) if config.STEP_UP_OTP else None
     actions = ActionService(AuditLog(config.AUDIT_DB_PATH), step_up=step_up)
     common_tools.register_common_actions(actions)
     loans_domain.register_actions(actions)
     cards_domain.register_actions(actions)
-    app["actions"] = actions
-    app["workflows"] = load_workflows()
-    app["llm"] = GeminiREST(config.GEMINI_API_KEY, config.GEMINI_TEXT_MODEL, [config.GEMINI_FALLBACK_MODEL])
-    app["agent"] = TextAgent(app["llm"], app["workflows"], app["connectors"], actions)
-    app["locks"] = defaultdict(asyncio.Lock)
-    logs.event(log, "ready", role=config.SERVICE_ROLE, state_backend=state.backend, port=config.PORT, as_of=config.AS_OF.isoformat(), workflows=list(app["workflows"]),
+    app[K.ACTIONS] = actions
+    app[K.WORKFLOWS] = load_workflows()
+    app[K.LLM] = GeminiREST(config.GEMINI_API_KEY, config.GEMINI_TEXT_MODEL, [config.GEMINI_FALLBACK_MODEL])
+    app[K.AGENT] = TextAgent(app[K.LLM], app[K.WORKFLOWS], app[K.CONNECTORS], actions)
+    app[K.LOCKS] = defaultdict(asyncio.Lock)
+    logs.event(log, "ready", role=config.SERVICE_ROLE, state_backend=state.backend, port=config.PORT, as_of=config.AS_OF.isoformat(), workflows=list(app[K.WORKFLOWS]),
                text_model=config.GEMINI_TEXT_MODEL, fallback_model=config.GEMINI_FALLBACK_MODEL,
                gemini_key_set=bool(config.GEMINI_API_KEY), admin_token_set=bool(config.ADMIN_TOKEN))
 
@@ -110,16 +111,16 @@ def _sms_sender():
 
 
 async def on_cleanup(app: web.Application) -> None:
-    await app["connectors"].close()
-    await app["llm"].close()
-    await app["state"].close()
+    await app[K.CONNECTORS].close()
+    await app[K.LLM].close()
+    await app[K.STATE].close()
 
 
 async def _session(request: web.Request):
     """Session from the HttpOnly cookie (browser) or X-Session header (API clients).
     Never from the query string: URLs end up in proxy and access logs."""
     sid = request.cookies.get(COOKIE) or request.headers.get("X-Session")
-    s = await request.app["sessions"].get(sid)
+    s = await request.app[K.SESSIONS].get(sid)
     if s is None:
         raise web.HTTPUnauthorized(text=json.dumps({"error": "session expired"}), content_type="application/json")
     logs.bind(session=logs.session_hash(s.id), customer=s.customer_id)
@@ -141,7 +142,7 @@ async def index(request):
 
 
 async def api_config(request):
-    wfs = request.app["workflows"]
+    wfs = request.app[K.WORKFLOWS]
     return web.json_response({
         "as_of": config.AS_OF.isoformat(),
         "workflows": [{"id": w.id, "name": w.name, "description": w.description, "panels": w.panels,
@@ -157,27 +158,27 @@ async def api_config(request):
 async def api_login(request):
     body = await request.json()
     phone = common_tools.normalise_phone(str(body.get("phone", "")))
-    guard = request.app["login_guard"]
+    guard = request.app[K.LOGIN_GUARD]
     if await guard.locked(phone):
         logs.event(log, "login locked", level=30, phone=mask_phone(phone))
         return web.json_response({"ok": False, "error": "Too many attempts. Try again in 15 minutes."}, status=429)
     wf = body.get("workflow") or config.DEFAULT_WORKFLOW
-    if wf not in request.app["workflows"]:
+    if wf not in request.app[K.WORKFLOWS]:
         return web.json_response({"ok": False, "error": "unknown workflow"}, status=400)
-    s = await request.app["sessions"].create(wf, "web")
-    res = await common_tools.verify(s, request.app["connectors"], phone, str(body.get("dob", "")))
+    s = await request.app[K.SESSIONS].create(wf, "web")
+    res = await common_tools.verify(s, request.app[K.CONNECTORS], phone, str(body.get("dob", "")))
     if not res.get("ok"):
         await guard.record_failure(phone)
-        await request.app["sessions"].drop(s.id)
+        await request.app[K.SESSIONS].drop(s.id)
         METRICS.incr("auth.login_failed")
         logs.event(log, "login failed", level=30, phone=mask_phone(phone))
         return web.json_response({"ok": False, "error": res.get("error", "Verification failed")}, status=401)
-    await request.app["sessions"].save(s)
+    await request.app[K.SESSIONS].save(s)
     METRICS.incr("auth.login_ok")
     logs.event(log, "login verified", session=logs.session_hash(s.id), customer=s.customer_id)
     if body.get("language") in LANGUAGES:
         s.language = body["language"]
-        await request.app["sessions"].save(s)
+        await request.app[K.SESSIONS].save(s)
     resp = web.json_response({"ok": True, "customer_name": s.customer_name, "workflow": s.workflow_id,
                               "language": s.language})
     resp.set_cookie(COOKIE, s.id, httponly=True, secure=_is_https(request), samesite="Strict", path="/",
@@ -188,7 +189,7 @@ async def api_login(request):
 async def api_logout(request):
     sid = request.cookies.get(COOKIE) or request.headers.get("X-Session")
     if sid:
-        await request.app["sessions"].drop(sid)
+        await request.app[K.SESSIONS].drop(sid)
     resp = web.json_response({"ok": True})
     resp.del_cookie(COOKIE, path="/")
     return resp
@@ -198,7 +199,7 @@ async def api_workflow(request):
     s = await _session(request)
     body = await request.json()
     wf = body.get("workflow")
-    if wf not in request.app["workflows"]:
+    if wf not in request.app[K.WORKFLOWS]:
         return web.json_response({"ok": False, "error": "unknown workflow"}, status=400)
     if wf != s.workflow_id:
         s.workflow_id = wf
@@ -209,7 +210,7 @@ async def api_workflow(request):
         if ctx:
             s.history = [{"role": "user", "parts": [{"text": "[Earlier in this session]\n" + ctx}]},
                          {"role": "model", "parts": [{"text": "Understood, I have the context."}]}]
-        await request.app["sessions"].save(s)
+        await request.app[K.SESSIONS].save(s)
     return web.json_response({"ok": True, "workflow": s.workflow_id})
 
 
@@ -221,12 +222,12 @@ async def api_language(request):
     if code not in LANGUAGES and code != "auto":
         return web.json_response({"ok": False, "error": "unsupported language"}, status=400)
     s.language = code
-    await request.app["sessions"].save(s)
+    await request.app[K.SESSIONS].save(s)
     return web.json_response({"ok": True, "language": s.language})
 
 
 async def _direct_tool(request, s, name: str):
-    ctx = ToolContext(s, request.app["connectors"], request.app["actions"], Trace(), config.AS_OF)
+    ctx = ToolContext(s, request.app[K.CONNECTORS], request.app[K.ACTIONS], Trace(), config.AS_OF)
     return await REGISTRY.run(name, {}, ctx, [name])
 
 
@@ -242,7 +243,7 @@ async def api_account(request):
 async def api_activity(request):
     s = await _session(request)
     reqs = await _direct_tool(request, s, "list_service_requests")
-    audit = request.app["actions"].audit.for_customer(s.customer_id, 30)
+    audit = request.app[K.ACTIONS].audit.for_customer(s.customer_id, 30)
     return web.json_response({"requests": reqs.data.get("requests", []), "audit": audit})
 
 
@@ -265,15 +266,15 @@ async def ws_chat(request):
         except ValueError:
             continue
         if data.get("type") == "user" and str(data.get("text", "")).strip():
-            if not await request.app["chat_limit"].hit(s.id):
+            if not await request.app[K.CHAT_LIMIT].hit(s.id):
                 METRICS.incr("ratelimit.chat")
                 await emit({"type": "error", "text": "You're sending messages very quickly — please wait a moment."})
                 continue
             text = str(data["text"]).strip()[:2000]
-            async with request.app["locks"][s.id]:
+            async with request.app[K.LOCKS][s.id]:
                 await emit({"type": "thinking"})
-                await request.app["agent"].turn(s, text, emit)
-                await request.app["sessions"].save(s)      # durable after every turn
+                await request.app[K.AGENT].turn(s, text, emit)
+                await request.app[K.SESSIONS].save(s)      # durable after every turn
     return ws
 
 
@@ -287,17 +288,17 @@ async def ws_voice(request):
         await ws.send_str(json.dumps({"type": "error", "text": "Voice needs GEMINI_API_KEY on the server."}))
         await ws.close()
         return ws
-    if not await request.app["voice_limit"].hit(s.id):
+    if not await request.app[K.VOICE_LIMIT].hit(s.id):
         METRICS.incr("ratelimit.voice")
         await ws.send_str(json.dumps({"type": "error", "text": "Too many voice sessions — please wait a minute."}))
         await ws.close()
         return ws
-    conv = VoiceConversation(s, request.app["workflows"][s.workflow_id], BrowserTransport(ws),
-                             request.app["connectors"], request.app["actions"])
+    conv = VoiceConversation(s, request.app[K.WORKFLOWS][s.workflow_id], BrowserTransport(ws),
+                             request.app[K.CONNECTORS], request.app[K.ACTIONS])
     try:
         await conv.run()
     finally:
-        await request.app["sessions"].save(s)          # voice transcript + actions become durable
+        await request.app[K.SESSIONS].save(s)          # voice transcript + actions become durable
     if not ws.closed:
         await ws.close()
     return ws
@@ -341,17 +342,17 @@ async def stream(request):
         logs.event(log, "phone stream rejected: bad token", level=30)
         await ws.close()
         return ws
-    s = await request.app["sessions"].create(config.DEFAULT_WORKFLOW, "phone")
+    s = await request.app[K.SESSIONS].create(config.DEFAULT_WORKFLOW, "phone")
     s.phone = common_tools.normalise_phone(caller)
     logs.bind(session=logs.session_hash(s.id), channel="phone")
-    conv = VoiceConversation(s, request.app["workflows"][s.workflow_id], transport,
-                             request.app["connectors"], request.app["actions"])
+    conv = VoiceConversation(s, request.app[K.WORKFLOWS][s.workflow_id], transport,
+                             request.app[K.CONNECTORS], request.app[K.ACTIONS])
     await conv.run()
     if not ws.closed:
         await ws.close()
     if transport.recorder:
         await asyncio.to_thread(_save_recording, transport.recorder, s)
-    await request.app["sessions"].drop(s.id)
+    await request.app[K.SESSIONS].drop(s.id)
     return ws
 
 
@@ -387,10 +388,10 @@ async def api_metrics(request):
     if not admin_ok(request):      # business volumes and KPIs are not public on a deployed service
         raise web.HTTPForbidden(text=json.dumps({"error": "admin token required"}), content_type="application/json")
     out = METRICS.summary()
-    out["breakers"] = request.app["connectors"].health()
-    out["llm_breakers"] = {m: b.state for m, b in request.app["llm"].breakers.items()}
-    out["active_sessions"] = await request.app["sessions"].count()
-    out["state_backend"] = request.app["state"].backend
+    out["breakers"] = request.app[K.CONNECTORS].health()
+    out["llm_breakers"] = {m: b.state for m, b in request.app[K.LLM].breakers.items()}
+    out["active_sessions"] = await request.app[K.SESSIONS].count()
+    out["state_backend"] = request.app[K.STATE].backend
     out["kpis"] = kpis()
     out["role"] = config.SERVICE_ROLE
     return web.json_response(out)
@@ -412,8 +413,8 @@ async def api_faults(request):
             raise web.HTTPForbidden(text=json.dumps({"error": "admin token required"}), content_type="application/json")
         body = await request.json()
         logs.event(log, "fault profile changed", level=30, change=body)
-    if "mocks" in request.app:
-        ms: MockSystems = request.app["mocks"]
+    if K.MOCKS in request.app:
+        ms: MockSystems = request.app[K.MOCKS]
         if body is not None:
             if body.get("reset"):
                 ms.profiles = json.loads(json.dumps(DEFAULT_PROFILES))
@@ -425,7 +426,7 @@ async def api_faults(request):
                                 ms.profiles[system][k] = prof[k]
         profiles = ms.profiles
     else:
-        admin = request.app["connectors"].admin
+        admin = request.app[K.CONNECTORS].admin
         try:
             if body is None:
                 profiles = await admin.get("/faults")
@@ -435,7 +436,7 @@ async def api_faults(request):
                 profiles = await admin.post("/faults", body)
         except ConnectorError as e:
             return web.json_response({"error": f"systems service: {e.kind}"}, status=502)
-    return web.json_response({"profiles": profiles, "breakers": request.app["connectors"].health(),
+    return web.json_response({"profiles": profiles, "breakers": request.app[K.CONNECTORS].health(),
                               "admin": admin_ok(request)})
 
 
@@ -452,7 +453,7 @@ async def api_agent_queue(request):
     if not admin_ok(request):
         raise web.HTTPForbidden(text=json.dumps({"error": "admin token required"}), content_type="application/json")
     try:
-        return web.json_response(await request.app["connectors"]["ops"].get("/queue", {"type": "agent_handoff"}))
+        return web.json_response(await request.app[K.CONNECTORS]["ops"].get("/queue", {"type": "agent_handoff"}))
     except ConnectorError as e:
         return web.json_response({"error": f"service ops: {e.kind}"}, status=502)
 
@@ -465,7 +466,7 @@ async def api_agent_accept(request):
     if not re.fullmatch(r"SR-[A-Z0-9]{8}", tid):
         return web.json_response({"error": "bad request id"}, status=400)
     try:
-        row = await request.app["connectors"]["ops"].post(f"/requests/{tid}/accept", {"agent": str(body.get("agent", ""))[:60]})
+        row = await request.app[K.CONNECTORS]["ops"].post(f"/requests/{tid}/accept", {"agent": str(body.get("agent", ""))[:60]})
     except ConnectorError as e:
         return web.json_response({"error": f"service ops: {e.kind}"}, status=404 if e.kind == "not_found" else 502)
     logs.event(log, "hand-off accepted", request_id=tid)
@@ -480,18 +481,18 @@ async def readyz(request):
     """Ready when the systems answer and the audit store is writable."""
     checks = {}
     try:
-        await request.app["connectors"]["crm"].get("/lookup", {"phone": "0000000000"})
+        await request.app[K.CONNECTORS]["crm"].get("/lookup", {"phone": "0000000000"})
         checks["systems"] = "ok"
     except ConnectorError as e:
         checks["systems"] = "ok" if e.kind == "not_found" else e.kind
     try:
-        request.app["actions"].audit.conn.execute("SELECT 1")
+        request.app[K.ACTIONS].audit.conn.execute("SELECT 1")
         checks["audit_store"] = "ok"
     except Exception as e:  # pragma: no cover - defensive
         checks["audit_store"] = type(e).__name__
-    if request.app["state"].backend == "redis":
+    if request.app[K.STATE].backend == "redis":
         try:
-            await request.app["state"].sessions.r.ping()
+            await request.app[K.STATE].sessions.r.ping()
             checks["state"] = "ok"
         except Exception as e:
             checks["state"] = type(e).__name__
@@ -504,7 +505,7 @@ async def health(request):
     return web.json_response({"status": "ok", "as_of": config.AS_OF.isoformat(),
                               "gemini_key_set": bool(config.GEMINI_API_KEY), "text_model": config.GEMINI_TEXT_MODEL,
                               "fallback_model": config.GEMINI_FALLBACK_MODEL, "live_model": config.GEMINI_LIVE_MODEL,
-                              "telephony": config.TELEPHONY_PROVIDER, "workflows": list(request.app["workflows"])})
+                              "telephony": config.TELEPHONY_PROVIDER, "workflows": list(request.app[K.WORKFLOWS])})
 
 
 # ------------------------------------------------------------------ middleware
@@ -553,7 +554,7 @@ def _systems_app() -> web.Application:
         raise SystemExit("SERVICE_ROLE=systems needs INTERNAL_TOKEN (shared with the gateway)")
     app = web.Application(middlewares=[request_context, security_headers])
     ms = MockSystems(str(config.DB_PATH), config.AS_OF)
-    app["mocks"] = ms
+    app[K.MOCKS] = ms
     app.add_subapp("/mock", build_mock_app(ms, internal_token=config.INTERNAL_TOKEN))
 
     async def ready(request):
@@ -580,10 +581,10 @@ def make_app() -> web.Application:
     # The token on every connector call. In "all" it is random per process, so the
     # co-located systems answer only this process; in "gateway" it is the secret
     # shared with the systems service.
-    app["internal_token"] = config.INTERNAL_TOKEN or secrets.token_urlsafe(24)
+    app[K.INTERNAL_TOKEN] = config.INTERNAL_TOKEN or secrets.token_urlsafe(24)
     if config.SERVICE_ROLE == "all":
-        app["mocks"] = MockSystems(str(config.DB_PATH), config.AS_OF)
-        app.add_subapp("/mock", build_mock_app(app["mocks"], internal_token=app["internal_token"]))
+        app[K.MOCKS] = MockSystems(str(config.DB_PATH), config.AS_OF)
+        app.add_subapp("/mock", build_mock_app(app[K.MOCKS], internal_token=app[K.INTERNAL_TOKEN]))
     elif not config.INTERNAL_TOKEN:
         raise SystemExit("SERVICE_ROLE=gateway needs INTERNAL_TOKEN and MOCK_BASE_URL of the systems service")
 

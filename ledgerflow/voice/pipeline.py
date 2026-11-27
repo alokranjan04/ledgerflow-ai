@@ -12,11 +12,11 @@ transport split out so the browser and the phone share one pipeline:
 from __future__ import annotations
 
 import asyncio
-import audioop
 import base64
 import json
 import time
 import traceback
+import warnings
 
 import websockets
 from aiohttp import WSMsgType, web
@@ -27,6 +27,10 @@ from ledgerflow.platform.grounding import Grounder
 from ledgerflow.platform.telemetry import METRICS, Trace, mark_engaged
 from ledgerflow.platform.tools import REGISTRY, ToolContext
 from ledgerflow.voice.recorder import CallRecorder
+
+with warnings.catch_warnings():   # stdlib audioop is deprecated in 3.12 and gone in 3.13,
+    warnings.simplefilter("ignore", DeprecationWarning)   # where the audioop-lts package provides it
+    import audioop  # noqa: E402
 
 GREETING_GUARD_MAX_SECS = 20
 POST_END_MAX_SECS = 30

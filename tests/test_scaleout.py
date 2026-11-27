@@ -9,6 +9,7 @@ import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 import app as lfapp
+from ledgerflow import appkeys as K
 from ledgerflow import config
 from ledgerflow.platform import logs
 from ledgerflow.platform.gcp_auth import IdTokenProvider
@@ -113,23 +114,23 @@ async def test_two_app_instances_share_one_customer_session(redis_server, tmp_pa
     port = _free_port()
     _isolate(monkeypatch, tmp_path, MOCK_BASE_URL=f"http://127.0.0.1:{port}/mock")
     app_a = lfapp.make_app()
-    app_a["redis_client"] = _client(redis_server)
-    for p in app_a["mocks"].profiles.values():
+    app_a[K.REDIS_CLIENT] = _client(redis_server)
+    for p in app_a[K.MOCKS].profiles.values():
         p.update(p50=1, p95=2, error_rate=0.0, down=False)
     ca = TestClient(TestServer(app_a, port=port))
     await ca.start_server()
     # Instance B: a gateway that uses A's systems (same internal token) and the same Redis.
     monkeypatch.setattr(config, "SERVICE_ROLE", "gateway")
-    monkeypatch.setattr(config, "INTERNAL_TOKEN", app_a["internal_token"])
+    monkeypatch.setattr(config, "INTERNAL_TOKEN", app_a[K.INTERNAL_TOKEN])
     app_b = lfapp.make_app()
-    app_b["redis_client"] = _client(redis_server)
+    app_b[K.REDIS_CLIENT] = _client(redis_server)
     cb = TestClient(TestServer(app_b))
     await cb.start_server()
     try:
         r = await ca.post("/api/login", json={"phone": PRIYA[0], "dob": PRIYA[1]})
         sid = r.cookies["lf_sid"].value
         assert (await (await ca.get("/api/metrics")).json())["state_backend"] == "redis"
-        cb.app["agent"].llm = ScriptedLLM([fc("get_loan_summary"), text("Your next EMI is ₹17,323.49.")])
+        cb.app[K.AGENT].llm = ScriptedLLM([fc("get_loan_summary"), text("Your next EMI is ₹17,323.49.")])
         async with cb.ws_connect("/ws/chat", headers={"X-Session": sid}) as ws:
             await ws.send_json({"type": "user", "text": "next EMI?"})
             while (await ws.receive_json(timeout=10))["type"] != "trace":
@@ -147,7 +148,7 @@ async def test_gateway_and_systems_split(tmp_path, monkeypatch):
     _isolate(monkeypatch, tmp_path, SERVICE_ROLE="systems", INTERNAL_TOKEN="shared-secret")
     systems = TestClient(TestServer(lfapp.make_app(), port=sys_port))
     await systems.start_server()
-    for p in systems.app["mocks"].profiles.values():
+    for p in systems.app[K.MOCKS].profiles.values():
         p.update(p50=1, p95=2, error_rate=0.0, down=False)
     _isolate(monkeypatch, tmp_path / "gw", SERVICE_ROLE="gateway", INTERNAL_TOKEN="shared-secret",
              MOCK_BASE_URL=f"http://127.0.0.1:{sys_port}/mock")
@@ -168,7 +169,7 @@ async def test_gateway_and_systems_split(tmp_path, monkeypatch):
         # fault injection is proxied to the systems service
         r = await (await gw.post("/api/faults", json={"payments": {"down": True}})).json()
         assert r["profiles"]["payments"]["down"] is True
-        assert systems.app["mocks"].profiles["payments"]["down"] is True
+        assert systems.app[K.MOCKS].profiles["payments"]["down"] is True
     finally:
         await gw.close()
         await systems.close()

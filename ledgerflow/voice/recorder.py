@@ -8,9 +8,13 @@ agent audio that was queued but never played.
 Appending both directions to one list in arrival order (the naive approach)
 chops the agent's speech into slivers and makes the file longer than the call.
 """
-import audioop
 import time
+import warnings
 import wave
+
+with warnings.catch_warnings():   # stdlib audioop is deprecated in 3.12 and gone in 3.13,
+    warnings.simplefilter("ignore", DeprecationWarning)   # where the audioop-lts package provides it
+    import audioop  # noqa: E402
 
 BYTES_PER_SEC = 8000 * 2
 

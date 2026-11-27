@@ -5,6 +5,7 @@ import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 import app as lfapp
+from ledgerflow import appkeys as K
 from ledgerflow import config
 
 from .test_text_agent import ScriptedLLM, fc, text
@@ -29,7 +30,7 @@ async def client(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "PUBLIC_URL", "")
     monkeypatch.setattr(config, "STREAM_TOKEN", "")
     application = lfapp.make_app()
-    for p in application["mocks"].profiles.values():
+    for p in application[K.MOCKS].profiles.values():
         p.update(p50=1, p95=2, error_rate=0.0, down=False)
     c = TestClient(TestServer(application, port=port))
     await c.start_server()
@@ -62,7 +63,7 @@ async def test_login_rate_limited_per_phone_across_sessions(client):
 @pytest.mark.req("REQ-UI-001.2", "REQ-AGT-002.2", "REQ-AGT-002.5")
 async def test_chat_websocket_event_protocol(client):
     _, body = await _login(client)
-    client.app["agent"].llm = ScriptedLLM([fc("get_loan_summary"), text("Your next EMI is ₹17,323.49.")])
+    client.app[K.AGENT].llm = ScriptedLLM([fc("get_loan_summary"), text("Your next EMI is ₹17,323.49.")])
     async with client.ws_connect("/ws/chat") as ws:
         await ws.send_json({"type": "user", "text": "What's my next EMI?"})
         kinds = []
@@ -77,7 +78,7 @@ async def test_chat_websocket_event_protocol(client):
 @pytest.mark.req("REQ-AGT-001.3")
 async def test_workflow_switch_keeps_identity_and_context(client):
     await _login(client)
-    sess = next(iter(client.app["sessions"].sessions.values()))   # in-memory backend in this fixture
+    sess = next(iter(client.app[K.SESSIONS].sessions.values()))   # in-memory backend in this fixture
     sess.add_transcript("user", "my EMI went up", "text")
     r = await (await client.post("/api/workflow", json={"workflow": "card_servicing"})).json()
     assert r["workflow"] == "card_servicing" and sess.verified
@@ -161,8 +162,11 @@ async def test_cross_origin_websocket_is_refused(client):
 async def test_chat_is_rate_limited_per_session(client, monkeypatch):
     await _login(client)
     from ledgerflow.platform.ratelimit import RateLimiter
-    client.app["chat_limit"] = RateLimiter(per_minute=2)
-    client.app["agent"].llm = ScriptedLLM([text("one"), text("two")])
+    limiter = client.app[K.CHAT_LIMIT]          # reconfigure in place: a running app's state is frozen
+    assert isinstance(limiter, RateLimiter)
+    limiter.capacity, limiter.refill = 2.0, 2 / 60
+    limiter.buckets.clear()
+    client.app[K.AGENT].llm = ScriptedLLM([text("one"), text("two")])
     async with client.ws_connect("/ws/chat") as ws:
         got = []
         for i in range(3):
@@ -180,7 +184,7 @@ async def test_liveness_and_readiness(client):
     r = await client.get("/readyz")
     body = await r.json()
     assert r.status == 200 and body["checks"]["systems"] == "ok" and body["checks"]["llm_key"] == "missing"
-    client.app["mocks"].profiles["crm"]["down"] = True
+    client.app[K.MOCKS].profiles["crm"]["down"] = True
     for _ in range(5):
         await client.get("/readyz")
     assert (await client.get("/readyz")).status == 503

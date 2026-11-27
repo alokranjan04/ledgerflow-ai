@@ -8,6 +8,7 @@ import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 import app as lfapp
+from ledgerflow import appkeys as K
 from ledgerflow import config
 from ledgerflow.platform.actions import ActionService, AuditLog
 from ledgerflow.platform.stepup import DemoSms, StepUp
@@ -195,14 +196,14 @@ async def test_agent_desk_lists_and_accepts_handoffs(tmp_path, monkeypatch):
                      MOCK_BASE_URL=f"http://127.0.0.1:{port}/mock").items():
         monkeypatch.setattr(config, k, v)
     application = lfapp.make_app()
-    for p in application["mocks"].profiles.values():
+    for p in application[K.MOCKS].profiles.values():
         p.update(p50=1, p95=2, error_rate=0.0, down=False)
     c = TestClient(TestServer(application, port=port))
     await c.start_server()
     try:
         await c.post("/api/login", json={"phone": PRIYA[0], "dob": PRIYA[1]})
-        sess = next(iter(c.app["sessions"].sessions.values()))
-        ctx = ToolContext(sess, c.app["connectors"], c.app["actions"], Trace(), AS_OF)
+        sess = next(iter(c.app[K.SESSIONS].sessions.values()))
+        ctx = ToolContext(sess, c.app[K.CONNECTORS], c.app[K.ACTIONS], Trace(), AS_OF)
         tid = (await REGISTRY.run("request_human_agent", {"reason": "wants a person"}, ctx, ["request_human_agent"])).data["request_id"]
         q = await (await c.get("/api/agent/queue")).json()
         assert q["open"] == 1 and q["items"][0]["id"] == tid
