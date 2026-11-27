@@ -206,3 +206,24 @@ def test_voice_prompt_puts_tools_before_speech():
     assert "call the tool FIRST" in COMMON_VOICE
     assert "Never say an amount, date or count that no tool returned" in COMMON_VOICE
     assert "say a 2-4 word filler" not in COMMON_VOICE
+
+
+@pytest.mark.req("REQ-UI-001.3")
+async def test_final_transcript_arrives_before_the_turn_trace(env, monkeypatch):
+    s, _ = await env["login"](*PRIYA)
+
+    async def script(ws, seen):
+        await ws.send(json.dumps({"serverContent": {"outputTranscription": {"text": "Hello Priya."}}}))
+        await ws.send(json.dumps(audio()))
+        await ws.send(json.dumps({"serverContent": {"turnComplete": True}}))
+        await asyncio.sleep(0.2)
+
+    server, url, _ = await fake_gemini(script)
+    monkeypatch.setattr(config, "GEMINI_WS_URL", url)
+    tr = FakeTransport()
+    try:
+        await asyncio.wait_for(VoiceConversation(s, env["wfs"]["loan_servicing"], tr, env["con"], env["actions"]).run(), 10)
+    finally:
+        server.close()
+    kinds = [(e["type"], e.get("final")) for e in tr.events if e["type"] in ("transcript", "trace")]
+    assert kinds.index(("transcript", True)) < kinds.index(("trace", None))

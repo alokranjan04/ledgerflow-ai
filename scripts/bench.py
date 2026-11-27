@@ -22,6 +22,8 @@ from pathlib import Path
 
 import aiohttp
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 sys.stdout.reconfigure(encoding="utf-8")
 ROOT = Path(__file__).resolve().parent.parent
 CUSTOMERS = [("9800000001", "1990-04-12"), ("9800000002", "1986-11-03"), ("9800000003", "1994-07-21")]
@@ -84,7 +86,9 @@ async def platform(url: str, steps: list[int]) -> tuple[str, dict]:
             rows.append((n, "errors", errors, 0, 0, 0))
             raw[n] = {"wall_s": wall, **{k: v for k, v in lat.items()}, "errors": errors}
             print(f"  {n} concurrent sessions done in {wall:.1f}s, errors={errors}")
-        async with h.get(f"{url}/api/metrics") as r:
+        from ledgerflow import config  # metrics are admin-only on a deployed service
+        admin = {"X-Admin-Token": config.ADMIN_TOKEN} if config.ADMIN_TOKEN else {}
+        async with h.get(f"{url}/api/metrics", headers=admin) as r:
             server = await r.json()
     md = ["| Concurrent sessions | Call | n | p50 ms | p95 ms | p99 ms |", "|---|---|---|---|---|---|"]
     md += [f"| {n} | {k} | {c} | {a:.0f} | {b:.0f} | {d:.0f} |" for n, k, c, a, b, d in rows]
@@ -101,7 +105,7 @@ async def journeys(url: str, runs: int) -> tuple[str, dict]:
         for name, (phone, dob, turns) in JOURNEYS.items():
             for _ in range(runs):
                 sid = await login(h, url, phone, dob)
-                async with h.ws_connect(f"{url.replace('http', 'ws', 1)}/ws/chat", headers={"X-Session": sid}) as ws:
+                async with h.ws_connect(f"{url.replace('http', 'ws', 1)}/ws/chat", headers={"X-Session": sid, "Origin": url}) as ws:
                     for text in turns:
                         t0 = time.perf_counter()
                         first_progress = None
@@ -121,7 +125,9 @@ async def journeys(url: str, runs: int) -> tuple[str, dict]:
                         results.setdefault(f"{name} :: {text[:48]}", []).append(
                             {"total_ms": total, "first_tool_ms": first_progress, "tools": tools, "reply": reply[:300]})
                         print(f"  {name[:28]:28} {total:7.0f} ms  tools={tools}")
-        async with h.get(f"{url}/api/metrics") as r:
+        from ledgerflow import config  # metrics are admin-only on a deployed service
+        admin = {"X-Admin-Token": config.ADMIN_TOKEN} if config.ADMIN_TOKEN else {}
+        async with h.get(f"{url}/api/metrics", headers=admin) as r:
             server = await r.json()
     md = ["| Journey turn | runs | first tool started p50 ms | turn total p50 ms | turn total max ms | tools |",
           "|---|---|---|---|---|---|"]

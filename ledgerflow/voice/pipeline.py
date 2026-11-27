@@ -274,6 +274,7 @@ class VoiceConversation:
             if sc.get("turnComplete"):
                 self.flush()
                 self.greeting_done = True
+                await asyncio.sleep(0)   # let flush()'s final-transcript events go out before the turn's trace
                 await self.tr.event({"type": "trace", "mode": self.tr.mode, "spans": self.trace.to_event(),
                                      "total_ms": None})
                 if self.end_after_turn and self.audio_since_end > 0:
