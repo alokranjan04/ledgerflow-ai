@@ -165,3 +165,15 @@ def test_accessibility_no_serious_violations(page):
 @pytest.mark.req("REQ-UI-001.6")
 def test_no_console_errors_on_load(page):
     assert re.search(r"LedgerFlow", page.title())
+
+
+@pytest.mark.req("REQ-UI-001.7")
+def test_ended_session_returns_to_sign_in_instead_of_reconnecting_forever(page):
+    """A server restart or timeout ends the session while the page is open: the chat socket is then
+    refused, and the page must send the customer back to sign-in with a reason."""
+    sign_in(page, "Priya Sharma · 9800000001")
+    page.evaluate("fetch('/api/logout', {method: 'POST', headers: {'content-type': 'application/json'}, body: '{}'})"
+                  ".then(() => state.chat.close())")
+    page.wait_for_selector("#login:not(.hidden)", timeout=15000)
+    assert "session ended" in page.inner_text("#login-error")
+    assert page.locator("#app.hidden").count() == 1

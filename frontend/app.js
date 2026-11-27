@@ -33,7 +33,10 @@ async function api(path, opts = {}) {
   const headers = { 'content-type': 'application/json', ...(opts.headers || {}) };
   if (state.adminToken) headers['X-Admin-Token'] = state.adminToken;
   const r = await fetch(path, { ...opts, headers });
-  if (r.status === 401 && state.session && path !== '/api/login') { logout(); throw new Error('session expired'); }
+  if (r.status === 401 && state.session && path !== '/api/login') {
+    logout(); $('#login-error').textContent = 'Your session ended. Please sign in again.';
+    throw new Error('session expired');
+  }
   return r.json();
 }
 const wsUrl = (p) => (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + p;
@@ -314,9 +317,17 @@ function connectChat(delay = 0) {
   setTimeout(() => {
     if (!state.session) return;
     const ws = new WebSocket(wsUrl('/ws/chat'));
+    let opened = false;
     state.chat = ws;
+    ws.onopen = () => { opened = true; };
     ws.onmessage = (m) => onEvent(JSON.parse(m.data), 'text');
-    ws.onclose = () => { if (state.session) connectChat(Math.min(5000, (delay || 500) * 2)); };
+    ws.onclose = async () => {
+      if (!state.session) return;
+      // Refused before opening: often the session ended (server restart, timeout). Ask the API,
+      // which returns 401 and sends the customer back to sign-in instead of retrying forever.
+      if (!opened) { try { await api('/api/account'); } catch (e) { return; } }
+      if (state.session) connectChat(Math.min(5000, (delay || 500) * 2));
+    };
   }, delay);
 }
 function send(text) {

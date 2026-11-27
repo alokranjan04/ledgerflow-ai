@@ -11,6 +11,7 @@ Challenge 1: a usable web app with text and voice that feels like a product. Cod
 - **REQ-UI-001.3** [SHOULD] The voice WebSocket SHALL carry binary PCM16 16 kHz upstream and 24 kHz downstream, plus JSON events (`voice_ready`, `transcript`, `interrupted`, tool events, `grounding_warning`, `error`). (Evidence: `ledgerflow/voice/pipeline.py`, `frontend/app.js`)
 - **REQ-UI-001.4** [MUST] The sign-in and chat screens SHALL have no serious or critical axe-core accessibility violations (WCAG 2.x AA rules, including 4.5:1 text contrast).
 - **REQ-UI-001.6** [MUST] Browser end-to-end tests SHALL cover sign-in, an answer with its card and agent steps, the model-outage fallback, the Hindi language switch, the workflow switch, refused sign-in, and the dashboard and agent-desk pages.
+- **REQ-UI-001.7** [MUST] IF the session has ended while the page is open (server restart, timeout, logout elsewhere) THEN the page SHALL return the customer to sign-in with the reason, instead of retrying the chat connection indefinitely.
 
 ## Interfaces
 `POST /api/login` (sets the `lf_sid` HttpOnly cookie; see SPEC-SEC-002), `POST /api/logout`, `POST /api/workflow`, `GET /api/account`, `GET /api/activity`, `GET /ws/chat`,

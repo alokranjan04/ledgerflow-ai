@@ -41,6 +41,12 @@
   ],
   "outcome": "passed"
  },
+ "tests/e2e/test_ui.py::test_ended_session_returns_to_sign_in_instead_of_reconnecting_forever": {
+  "reqs": [
+   "REQ-UI-001.7"
+  ],
+  "outcome": "passed"
+ },
  "tests/test_app.py::test_login_account_and_unknown_session": {
   "reqs": [
    "REQ-SEC-001.1",
