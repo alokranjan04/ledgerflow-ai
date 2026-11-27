@@ -191,3 +191,16 @@ def test_log_based_metrics_match_what_the_code_logs():
     dash = json.loads((ROOT / "monitoring" / "dashboard.json").read_text(encoding="utf-8"))
     used = set(re.findall(r"user[/_](lf_\w+)", json.dumps(dash)))
     assert used and used <= names, used - names
+
+
+@pytest.mark.req("REQ-LNG-001.1")
+@pytest.mark.parametrize("q", ["Mere kaunse payments fail hue pichle 6 mahine mein?", "Agla EMI kitne ka hai?",
+                               "Mujhe loan band karna hai"])
+def test_common_hinglish_is_detected(q):
+    assert lang.detect(q) == "hi-Latn"
+
+
+@pytest.mark.req("REQ-LNG-001.1")
+@pytest.mark.parametrize("q", ["Do I have any failed payments?", "Show me my statement", "Can I close the loan now?"])
+def test_english_is_not_mistaken_for_hinglish(q):
+    assert lang.detect(q) == "en"

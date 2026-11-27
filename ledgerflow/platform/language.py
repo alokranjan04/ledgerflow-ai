@@ -14,7 +14,11 @@ LATIN = re.compile(r"[A-Za-z]")
 # Frequent Hinglish function words; two or more in a message mark it as Hinglish.
 HINGLISH = {"kya", "mera", "meri", "mere", "hai", "hain", "kitna", "kitni", "kab", "kyun", "kyon", "nahi", "nahin",
             "karna", "karo", "kar", "chahiye", "batao", "bataiye", "paise", "paisa", "kaise", "aur", "toh", "bhi",
-            "maine", "mujhe", "aap", "apna", "abhi", "wala", "wali", "gaya", "gayi", "hua", "hoga", "sakta", "sakte"}
+            "maine", "mujhe", "aap", "apna", "abhi", "wala", "wali", "gaya", "gayi", "hua", "hoga", "sakta", "sakte",
+            # question words, verbs and time words common in Hinglish; none is an English word
+            "kaun", "kaunsa", "kaunse", "kaunsi", "kitne", "kahan", "kyu", "hue", "hui", "mein", "pichle", "pichhle",
+            "agle", "agla", "mahine", "mahina", "saal", "raha", "rahi", "rahe", "tha", "thi", "karwana",
+            "dijiye", "chahta", "chahti", "bolo", "boliye", "samjhao", "kyunki", "lekin", "sirf", "zyada", "kam"}
 
 
 def detect(text: str) -> str:

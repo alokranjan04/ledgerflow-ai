@@ -118,3 +118,11 @@ async def test_card_questions_take_the_fast_lane_in_the_card_workflow(env, monke
     s, _ = await env["login"](*ANANYA, workflow="card_servicing")
     reply = await TextAgent(NoModel(), env["wfs"], env["con"], env["actions"]).turn(s, "What's my statement?", _noop)
     assert "statement balance" in reply and "minimum due" in reply
+
+
+@pytest.mark.req("REQ-AGT-005.3")
+async def test_options_answer_states_the_loan_position(env, monkeypatch):
+    monkeypatch.setattr(config, "FAST_LANE", True)
+    s, _ = await env["login"](*PRIYA)
+    reply = await TextAgent(NoModel(), env["wfs"], env["con"], env["actions"]).turn(s, "What are my options?", _noop)
+    assert "₹5,77,913.11" in reply and "₹17,323.49" in reply and "PL-FL-5.2" in reply

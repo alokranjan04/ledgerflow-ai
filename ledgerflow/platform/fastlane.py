@@ -196,7 +196,17 @@ def answer(intent: str, d: dict, lang: str) -> str:
     if intent == "options":
         rows = [f"- **{o['option'].replace('_', ' ')}** ({'available' if o['available'] else 'not yet'}): {o['detail']} "
                 f"[{o['clause']}]" for o in d.get("options", [])]
-        return "\n".join([_t(lang, "Your options right now:", "अभी आपके विकल्प:", "Abhi aapke options:"), *rows])
+        head = _t(lang,
+                  f"Your loan {d['loan_id']}: outstanding principal **{d['outstanding_principal']}** at "
+                  f"{d['interest_rate_pct']}%, current EMI {d['current_emi']}, {d['emis_remaining']} EMIs left. "
+                  "Your options right now:",
+                  f"आपका लोन {d['loan_id']}: बकाया मूलधन **{d['outstanding_principal']}**, ब्याज दर "
+                  f"{d['interest_rate_pct']}%, मौजूदा EMI {d['current_emi']}, {d['emis_remaining']} EMI बाकी। "
+                  "अभी आपके विकल्प:",
+                  f"Aapka loan {d['loan_id']}: outstanding principal **{d['outstanding_principal']}**, rate "
+                  f"{d['interest_rate_pct']}%, current EMI {d['current_emi']}, {d['emis_remaining']} EMI baaki. "
+                  "Abhi aapke options:")
+        return "\n".join([head, *rows])
     if intent == "card_summary":
         return _t(lang,
                   f"Your statement balance is **{d['statement_balance']}**; minimum due **{d['minimum_due']}** by "

@@ -326,6 +326,12 @@
   ],
   "outcome": "passed"
  },
+ "tests/test_fastlane.py::test_options_answer_states_the_loan_position": {
+  "reqs": [
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
  "tests/test_finance.py::test_emi_golden_values": {
   "reqs": [
    "REQ-FIN-001.1"
@@ -639,6 +645,42 @@
  "tests/test_language_kpi.py::test_log_based_metrics_match_what_the_code_logs": {
   "reqs": [
    "REQ-KPI-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_common_hinglish_is_detected[Mere kaunse payments fail hue pichle 6 mahine mein?]": {
+  "reqs": [
+   "REQ-LNG-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_common_hinglish_is_detected[Agla EMI kitne ka hai?]": {
+  "reqs": [
+   "REQ-LNG-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_common_hinglish_is_detected[Mujhe loan band karna hai]": {
+  "reqs": [
+   "REQ-LNG-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_english_is_not_mistaken_for_hinglish[Do I have any failed payments?]": {
+  "reqs": [
+   "REQ-LNG-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_english_is_not_mistaken_for_hinglish[Show me my statement]": {
+  "reqs": [
+   "REQ-LNG-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_language_kpi.py::test_english_is_not_mistaken_for_hinglish[Can I close the loan now?]": {
+  "reqs": [
+   "REQ-LNG-001.1"
   ],
   "outcome": "passed"
  },
