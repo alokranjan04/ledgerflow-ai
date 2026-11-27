@@ -1,0 +1,268 @@
+{
+ "schema_version": 1,
+ "diagram_type": "architecture",
+ "meta": {
+  "title": "C1 · System context — LedgerFlow AI",
+  "output": ".archify/c1-context-20261127-163321/c1-context.html",
+  "quality_profile": "showcase",
+  "locale": "en",
+  "repository": {
+   "url": "https://github.com/alokranjan04/ledgerflow-ai.git",
+   "revision": "5ea1d21e2c7597c82bd951845370fbdc7b883f73",
+   "link_mode": "web"
+  }
+ },
+ "components": [
+  {
+   "id": "caller",
+   "type": "external",
+   "label": "Phone caller",
+   "sublabel": "customer on a call",
+   "icon": "person",
+   "pos": [
+    40,
+    40
+   ],
+   "size": [
+    150,
+    60
+   ]
+  },
+  {
+   "id": "telephony",
+   "type": "cloud",
+   "label": "Vobiz / Twilio",
+   "sublabel": "number + media stream",
+   "pos": [
+    290,
+    40
+   ],
+   "size": [
+    170,
+    60
+   ]
+  },
+  {
+   "id": "customer",
+   "type": "external",
+   "label": "Customer",
+   "sublabel": "web browser",
+   "icon": "person",
+   "pos": [
+    40,
+    218
+   ],
+   "size": [
+    150,
+    64
+   ]
+  },
+  {
+   "id": "ledgerflow",
+   "type": "backend",
+   "label": "LedgerFlow AI",
+   "sublabel": "loan + card servicing · English / Hindi",
+   "tag": "this system",
+   "pos": [
+    440,
+    190
+   ],
+   "size": [
+    230,
+    120
+   ],
+   "sources": [
+    {
+     "path": "app.py",
+     "line": 568,
+     "label": "service entry"
+    },
+    {
+     "path": "workflows/loan_servicing.yaml",
+     "line": 1,
+     "label": "loan workflow"
+    }
+   ]
+  },
+  {
+   "id": "gemini",
+   "type": "cloud",
+   "label": "Google Gemini API",
+   "sublabel": "text model + Live audio",
+   "pos": [
+    920,
+    110
+   ],
+   "size": [
+    200,
+    64
+   ]
+  },
+  {
+   "id": "enterprise",
+   "type": "external",
+   "label": "Enterprise systems",
+   "sublabel": "CRM · Loans · Payments · Policy · Ops · Cards",
+   "tag": "simulated in PoC",
+   "pos": [
+    920,
+    236
+   ],
+   "size": [
+    200,
+    78
+   ],
+   "sources": [
+    {
+     "path": "ledgerflow/mocks/server.py",
+     "line": 85,
+     "label": "simulated systems"
+    }
+   ]
+  },
+  {
+   "id": "gcp",
+   "type": "cloud",
+   "label": "Google Cloud services",
+   "sublabel": "Secrets · Logging · Monitoring",
+   "pos": [
+    920,
+    380
+   ],
+   "size": [
+    200,
+    64
+   ],
+   "sources": [
+    {
+     "path": "scripts/deploy.sh",
+     "line": 1,
+     "label": "deploy"
+    },
+    {
+     "path": "scripts/setup_monitoring.sh",
+     "line": 1,
+     "label": "KPIs as code"
+    }
+   ]
+  },
+  {
+   "id": "ops",
+   "type": "external",
+   "label": "Ops engineer",
+   "sublabel": "ops panel + metrics",
+   "icon": "person",
+   "pos": [
+    465,
+    400
+   ],
+   "size": [
+    180,
+    64
+   ]
+  },
+  {
+   "id": "cicd",
+   "type": "external",
+   "label": "GitHub Actions",
+   "sublabel": "CI gates + evals",
+   "pos": [
+    920,
+    530
+   ],
+   "size": [
+    200,
+    64
+   ],
+   "sources": [
+    {
+     "path": ".github/workflows/ci.yml",
+     "line": 1
+    }
+   ]
+  }
+ ],
+ "connections": [
+  {
+   "id": "customer-uses",
+   "from": "customer",
+   "to": "ledgerflow",
+   "label": "HTTPS + WSS · text and voice",
+   "variant": "emphasis"
+  },
+  {
+   "id": "caller-dials",
+   "from": "caller",
+   "to": "telephony",
+   "label": "PSTN call"
+  },
+  {
+   "id": "telephony-streams",
+   "from": "telephony",
+   "to": "ledgerflow",
+   "label": "webhook + media WSS"
+  },
+  {
+   "id": "ask-model",
+   "from": "ledgerflow",
+   "to": "gemini",
+   "label": "chat + Live audio"
+  },
+  {
+   "id": "read-write-systems",
+   "from": "ledgerflow",
+   "to": "enterprise",
+   "label": "HTTP via connectors",
+   "variant": "emphasis"
+  },
+  {
+   "id": "platform-services",
+   "from": "ledgerflow",
+   "to": "gcp",
+   "label": "secrets · JSON logs",
+   "variant": "dashed"
+  },
+  {
+   "id": "ops-admin",
+   "from": "ops",
+   "to": "ledgerflow",
+   "label": "admin token",
+   "variant": "security"
+  },
+  {
+   "id": "ci-deploy",
+   "from": "cicd",
+   "to": "gcp",
+   "label": "deploy via WIF",
+   "variant": "security"
+  }
+ ],
+ "cards": [
+  {
+   "dot": "cyan",
+   "title": "What it does",
+   "items": [
+    "Answers account-specific loan and card questions by text or live voice, in English, Hindi or Hinglish",
+    "Raises disputes, statements and prepayment requests after explicit confirmation and a one-time code",
+    "Every number comes from deterministic tools, never from the model; simple questions skip the model entirely"
+   ]
+  },
+  {
+   "dot": "rose",
+   "title": "Trust boundaries",
+   "items": [
+    "Customers verify with mobile + date of birth before any data; a one-time code before any change",
+    "The model never chooses whose data is read: identity comes from the session",
+    "Admin and KPI endpoints need a token; CI deploys keylessly via Workload Identity Federation"
+   ]
+  },
+  {
+   "dot": "amber",
+   "title": "PoC scope",
+   "items": [
+    "Enterprise systems are simulated behind the same connector contract real systems would use",
+    "Gemini is the only model provider; when it is down, simple questions are still answered from the systems"
+   ]
+  }
+ ]
+}

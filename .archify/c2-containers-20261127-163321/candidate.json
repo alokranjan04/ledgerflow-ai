@@ -1,0 +1,415 @@
+{
+ "schema_version": 1,
+ "diagram_type": "architecture",
+ "meta": {
+  "title": "C2 · Containers — LedgerFlow AI on Cloud Run",
+  "output": ".archify/c2-containers-20261127-163321/c2-containers.html",
+  "quality_profile": "showcase",
+  "locale": "en",
+  "repository": {
+   "url": "https://github.com/alokranjan04/ledgerflow-ai.git",
+   "revision": "5ea1d21e2c7597c82bd951845370fbdc7b883f73",
+   "link_mode": "web"
+  }
+ },
+ "components": [
+  {
+   "id": "caller",
+   "type": "external",
+   "label": "Phone caller",
+   "sublabel": "PSTN",
+   "icon": "person",
+   "pos": [
+    40,
+    40
+   ],
+   "size": [
+    140,
+    60
+   ]
+  },
+  {
+   "id": "telephony",
+   "type": "cloud",
+   "label": "Vobiz / Twilio",
+   "sublabel": "mu-law 8 kHz stream",
+   "pos": [
+    250,
+    40
+   ],
+   "size": [
+    170,
+    60
+   ]
+  },
+  {
+   "id": "customer",
+   "type": "external",
+   "label": "Customer",
+   "sublabel": "browser",
+   "icon": "person",
+   "pos": [
+    40,
+    200
+   ],
+   "size": [
+    140,
+    64
+   ]
+  },
+  {
+   "id": "spa",
+   "type": "frontend",
+   "label": "Web SPA",
+   "sublabel": "chat · mic · agent steps",
+   "tag": "frontend/",
+   "pos": [
+    270,
+    188
+   ],
+   "size": [
+    190,
+    88
+   ],
+   "sources": [
+    {
+     "path": "frontend/index.html",
+     "line": 1
+    },
+    {
+     "path": "frontend/app.js",
+     "line": 1
+    }
+   ]
+  },
+  {
+   "id": "gateway",
+   "type": "backend",
+   "label": "LedgerFlow service",
+   "sublabel": "aiohttp · Python 3.12 · app.py",
+   "tag": "Cloud Run asia-south1",
+   "pos": [
+    615,
+    180
+   ],
+   "size": [
+    230,
+    110
+   ],
+   "sources": [
+    {
+     "path": "app.py",
+     "line": 568,
+     "label": "make_app"
+    },
+    {
+     "path": "app.py",
+     "line": 251,
+     "label": "chat WebSocket"
+    },
+    {
+     "path": "app.py",
+     "line": 282,
+     "label": "voice WebSocket"
+    }
+   ]
+  },
+  {
+   "id": "gemini",
+   "type": "cloud",
+   "label": "Gemini API",
+   "sublabel": "generateContent + Live",
+   "pos": [
+    1010,
+    40
+   ],
+   "size": [
+    190,
+    64
+   ]
+  },
+  {
+   "id": "secrets",
+   "type": "security",
+   "label": "Secret Manager",
+   "sublabel": "Gemini key · admin token",
+   "pos": [
+    1010,
+    150
+   ],
+   "size": [
+    190,
+    64
+   ],
+   "sources": [
+    {
+     "path": "scripts/deploy.sh",
+     "line": 1
+    }
+   ]
+  },
+  {
+   "id": "mocks",
+   "type": "external",
+   "label": "Enterprise systems",
+   "sublabel": "/mock/* · customers.yaml",
+   "tag": "same process (PoC)",
+   "pos": [
+    1010,
+    262
+   ],
+   "size": [
+    190,
+    78
+   ],
+   "sources": [
+    {
+     "path": "ledgerflow/mocks/server.py",
+     "line": 85
+    },
+    {
+     "path": "ledgerflow/mocks/seed.py",
+     "line": 135
+    },
+    {
+     "path": "data/customers.yaml",
+     "line": 1,
+     "label": "demo customers"
+    }
+   ]
+  },
+  {
+   "id": "ledgerdb",
+   "type": "database",
+   "label": "Systems of record",
+   "sublabel": "SQLite · seeded data",
+   "pos": [
+    1030,
+    400
+   ],
+   "size": [
+    150,
+    64
+   ],
+   "sources": [
+    {
+     "path": "ledgerflow/mocks/server.py",
+     "line": 38
+    }
+   ]
+  },
+  {
+   "id": "sessions",
+   "type": "database",
+   "label": "Session store",
+   "sublabel": "memory, or Redis scaled out",
+   "pos": [
+    510,
+    420
+   ],
+   "size": [
+    160,
+    64
+   ],
+   "sources": [
+    {
+     "path": "ledgerflow/platform/sessions.py",
+     "line": 73
+    },
+    {
+     "path": "ledgerflow/platform/sessions.py",
+     "line": 119,
+     "label": "Redis store"
+    },
+    {
+     "path": "ledgerflow/platform/state.py",
+     "line": 27
+    }
+   ]
+  },
+  {
+   "id": "audit",
+   "type": "database",
+   "label": "Audit log",
+   "sublabel": "SQLite · append-only",
+   "pos": [
+    690,
+    420
+   ],
+   "size": [
+    160,
+    64
+   ],
+   "sources": [
+    {
+     "path": "ledgerflow/platform/actions.py",
+     "line": 61
+    }
+   ]
+  },
+  {
+   "id": "logging",
+   "type": "cloud",
+   "label": "Cloud Logging",
+   "sublabel": "JSON · audit · KPI events",
+   "pos": [
+    760,
+    560
+   ],
+   "size": [
+    170,
+    64
+   ],
+   "sources": [
+    {
+     "path": "ledgerflow/platform/logs.py",
+     "line": 39
+    }
+   ]
+  },
+  {
+   "id": "monitoring",
+   "type": "cloud",
+   "label": "Cloud Monitoring",
+   "sublabel": "log-based KPI metrics",
+   "pos": [
+    1060,
+    560
+   ],
+   "size": [
+    180,
+    64
+   ],
+   "sources": [
+    {
+     "path": "monitoring/dashboard.json",
+     "line": 1
+    },
+    {
+     "path": "scripts/setup_monitoring.sh",
+     "line": 1
+    }
+   ]
+  }
+ ],
+ "boundaries": [
+  {
+   "kind": "security-group",
+   "label": "Cloud Run instance · runtime SA",
+   "wraps": [
+    "gateway",
+    "sessions",
+    "audit"
+   ],
+   "pad": 14
+  }
+ ],
+ "connections": [
+  {
+   "id": "customer-opens",
+   "from": "customer",
+   "to": "spa",
+   "label": "uses",
+   "variant": "emphasis"
+  },
+  {
+   "id": "spa-calls",
+   "from": "spa",
+   "to": "gateway",
+   "label": "REST + WSS · cookie",
+   "variant": "emphasis"
+  },
+  {
+   "id": "caller-dials",
+   "from": "caller",
+   "to": "telephony",
+   "label": "call"
+  },
+  {
+   "id": "phone-stream",
+   "from": "telephony",
+   "to": "gateway",
+   "label": "webhook + media WSS"
+  },
+  {
+   "id": "model-calls",
+   "from": "gateway",
+   "to": "gemini",
+   "label": "REST + Live WSS"
+  },
+  {
+   "id": "secrets-mounted",
+   "from": "secrets",
+   "to": "gateway",
+   "label": "mounted env",
+   "variant": "security"
+  },
+  {
+   "id": "connector-calls",
+   "from": "gateway",
+   "to": "mocks",
+   "label": "HTTP + internal token",
+   "variant": "emphasis"
+  },
+  {
+   "id": "systems-read",
+   "from": "mocks",
+   "to": "ledgerdb",
+   "label": "SQL"
+  },
+  {
+   "id": "session-state",
+   "from": "gateway",
+   "to": "sessions",
+   "label": "identity · context"
+  },
+  {
+   "id": "audit-append",
+   "from": "gateway",
+   "to": "audit",
+   "label": "append"
+  },
+  {
+   "id": "log-out",
+   "from": "gateway",
+   "to": "logging",
+   "label": "stdout JSON",
+   "variant": "dashed"
+  },
+  {
+   "id": "kpi-metrics",
+   "from": "logging",
+   "to": "monitoring",
+   "label": "log-based KPIs",
+   "variant": "dashed"
+  }
+ ],
+ "cards": [
+  {
+   "dot": "cyan",
+   "title": "Containers",
+   "items": [
+    "Web SPA: chat, cards, agent steps, live mic, language picker, ops panel, /dashboard, /agent (frontend/)",
+    "LedgerFlow service: text + voice runtimes, fast lane, tools, step-up OTP, hand-off (app.py, ledgerflow/)",
+    "Enterprise systems: simulated CRM, Loans, Payments, Policy, Ops, Cards, seeded from data/customers.yaml"
+   ]
+  },
+  {
+   "dot": "rose",
+   "title": "Perimeter",
+   "items": [
+    "Session in an HttpOnly SameSite=Strict cookie; never in URLs",
+    "/mock/* answers only the service's own connectors (internal token); external calls get 403",
+    "Runs as ledgerflow-ai-runtime with no key file; secrets from Secret Manager"
+   ]
+  },
+  {
+   "dot": "amber",
+   "title": "Scale-out (ADR 0005)",
+   "items": [
+    "Today: one instance, sessions in memory, SQLite for systems and audit",
+    "SERVICE_ROLE=gateway + REDIS_URL: stateless autoscaled gateway; systems as a private service"
+   ]
+  }
+ ]
+}

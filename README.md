@@ -8,10 +8,10 @@ on the same platform to show reuse.
 Architecture, decisions and trade-offs: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · production hardening and roadmap:
 [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) · decisions: [docs/adr/](docs/adr/).
 
-C4 diagrams (interactive HTML): [C1 context](.archify/c1-context-20261126-213221/c1-context.html) ·
-[C2 containers](.archify/c2-containers-20261126-213221/c2-containers.html) ·
-[C3 components](.archify/c3-components-20261126-213221/c3-components.html) ·
-[C4 code](.archify/c4-code-20261126-213221/c4-code.html).
+C4 diagrams (interactive HTML): [C1 context](.archify/c1-context-20261127-163321/c1-context.html) ·
+[C2 containers](.archify/c2-containers-20261127-163321/c2-containers.html) ·
+[C3 components](.archify/c3-components-20261127-163321/c3-components.html) ·
+[C4 code](.archify/c4-code-20261127-163321/c4-code.html).
 
 ## Run it locally
 
