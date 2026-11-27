@@ -6,7 +6,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py ./
 COPY ledgerflow ./ledgerflow
 COPY workflows ./workflows
-COPY data/customers.yaml ./data/customers.yaml
+COPY data/customers.yaml data/policies.yaml ./data/
 COPY frontend ./frontend
 RUN useradd -m -u 1000 app && chown -R app /app
 USER app

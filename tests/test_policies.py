@@ -169,3 +169,13 @@ async def test_model_answer_with_iso_date_reaches_the_customer_readable(env):
     reply = await agent.turn(s, "When is my next EMI due?", emit)
     assert reply == "Your next EMI of ₹17,323.49 is due on 5 December 2026."
     assert next(e for e in events if e["type"] == "assistant")["text"] == reply
+
+
+@pytest.mark.req("REQ-DAT-001.7")
+def test_the_container_image_ships_every_data_file_the_app_loads():
+    """Deploy 00030 failed its start-up probe because data/policies.yaml was not copied into the image."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent
+    copies = " ".join(line for line in (root / "Dockerfile").read_text().splitlines() if line.startswith("COPY"))
+    for f in (seed_mod.CUSTOMERS_FILE, policies_mod.POLICIES_FILE):
+        assert f.relative_to(root).as_posix() in copies, f
