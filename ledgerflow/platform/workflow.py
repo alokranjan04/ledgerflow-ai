@@ -27,8 +27,10 @@ CHANNEL: TEXT CHAT
 COMMON_VOICE = """
 CHANNEL: LIVE VOICE
 - You are speaking, not writing: no markdown, no lists, no symbols. Short sentences.
-- Before any tool call that needs data, say a 2-4 word filler like "Let me check." or "One moment."
-  then call the tool. Never go silent for long.
+- For any account figure, date or eligibility, call the tool FIRST and speak only after its result.
+  Never say an amount, date or count that no tool returned in this conversation.
+  (Do not speak a filler before a tool call: measured on the live model, a spoken filler made it
+  skip the tool and invent the figure.)
 - Say amounts the Indian way ("twenty-one thousand four hundred and five rupees"), dates as
   "5 December". Round paise away in speech unless the customer asks for the exact figure.
 - If the customer interrupts or changes topic, drop the old question and answer the new one.

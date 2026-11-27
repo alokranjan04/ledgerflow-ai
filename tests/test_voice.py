@@ -196,3 +196,13 @@ def test_answer_xml_for_vobiz_and_twilio(monkeypatch):
     assert "wss://h/stream?caller_id=9800000001&amp;token=tok" in v and 'bidirectional="true"' in v
     t = telephony.Twilio().answer_xml("wss://h/stream", "9800000001")
     assert '<Stream url="wss://h/stream">' in t and 'name="token" value="tok"' in t
+
+
+@pytest.mark.req("REQ-VOX-001.11")
+def test_voice_prompt_puts_tools_before_speech():
+    """Measured on the live model: a 'say a filler, then call the tool' instruction made Gemini Live skip
+    the tool and invent the EMI (three different made-up amounts in three calls). Tool-first fixed it 3/3."""
+    from ledgerflow.platform.workflow import COMMON_VOICE
+    assert "call the tool FIRST" in COMMON_VOICE
+    assert "Never say an amount, date or count that no tool returned" in COMMON_VOICE
+    assert "say a 2-4 word filler" not in COMMON_VOICE

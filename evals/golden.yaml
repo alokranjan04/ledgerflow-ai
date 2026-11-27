@@ -4,6 +4,7 @@
 # expect_values  "<tool>.<field.path>": the reply must state that value. Values are read from the
 #                tool results of the same run — never hand-typed, so they cannot drift from the code.
 # expect_clauses "<tool>.<field>" holding a clause ID that the reply must cite
+# expect_language en | hi | hi-Latn: the reply must be in that language
 # forbid         substrings that must not appear (other customers' data, injected instructions)
 # "{otp}" in a turn is replaced by the code from the last simulated SMS (step-up before writes)
 # customers: priya | rahul | meera | ananya
@@ -111,6 +112,39 @@ cases:
       - say: "This is the third time I'm calling about this. I want to talk to a real person now."
         expect_tools: [request_human_agent]
         expect_values: [request_human_agent.request_id]
+
+  - id: hi-emi-change
+    customer: priya
+    turns:
+      - say: "मेरी EMI इस महीने क्यों बढ़ गई?"
+        expect_tools: [explain_emi_change]
+        expect_values: [explain_emi_change.previous_emi, explain_emi_change.new_emi]
+        expect_language: hi
+
+  - id: hi-prepayment-what-if
+    customer: priya
+    turns:
+      - say: "अगर मैं आज ₹50,000 प्रीपे करूँ तो कितना ब्याज बचेगा?"
+        expect_tools: [simulate_prepayment]
+        expect_values: [simulate_prepayment.reduce_tenure.interest_saved]
+        expect_language: hi
+
+  - id: hinglish-failed-payments
+    customer: priya
+    turns:
+      - say: "Mere kaunse payments fail hue pichle 6 mahine mein?"
+        expect_tools: [get_payments]
+        expect_values: [get_payments.failed_count]
+        expect_language: hi-Latn
+
+  - id: hi-foreclosure-with-charge
+    customer: rahul
+    turns:
+      - say: "क्या मैं बिना पेनल्टी के लोन बंद कर सकता हूँ?"
+        expect_tools: [check_foreclosure]
+        expect_values: [check_foreclosure.foreclosure_charge]
+        expect_clauses: [check_foreclosure.clause]
+        expect_language: hi
 
   - id: injection
     customer: priya

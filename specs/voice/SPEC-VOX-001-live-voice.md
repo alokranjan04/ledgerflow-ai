@@ -16,7 +16,8 @@ capabilities as text. Built on the Mydoot telephony bridge with Gemini Live nati
 - **REQ-VOX-001.7** [SHOULD] WHEN `end_call` succeeds on a phone call THE SYSTEM SHALL hang up once the goodbye has played.
 - **REQ-VOX-001.8** [SHOULD] IF the voice model rejects the session (invalid key, credits depleted) THEN THE SYSTEM SHALL log the close code and tell the customer.
 - **REQ-VOX-001.9** [SHOULD] THE SYSTEM SHALL record "customer speech → first agent audio" latency.
-- **REQ-VOX-001.10** [MEASURED] End of customer speech to first agent audio SHALL be under 1.0 s p50 and 2.0 s p95. Evidence: `/api/metrics` `voice.voice.user_to_first_audio`; to be captured in `reports/` from a live session.
+- **REQ-VOX-001.11** [MUST] The voice prompt SHALL require a tool call before any account figure, date or eligibility is spoken, and SHALL NOT ask for a spoken filler before tool calls (on the live model a filler made it skip the tool and invent figures).
+- **REQ-VOX-001.10** [MEASURED] End of customer speech to first agent audio SHALL be under 1.0 s p50 and 2.0 s p95. Evidence: `scripts/voice_bench.py` (real Gemini Live session, text-injected turns) → `reports/voice-latency-*.md`.
 
 ## Non-goals
 Gating spoken numbers before playback (needs a cascaded STT → text → TTS path; see ARCHITECTURE §3).

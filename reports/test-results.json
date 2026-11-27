@@ -962,5 +962,11 @@
    "REQ-VOX-001.6"
   ],
   "outcome": "passed"
+ },
+ "tests/test_voice.py::test_voice_prompt_puts_tools_before_speech": {
+  "reqs": [
+   "REQ-VOX-001.11"
+  ],
+  "outcome": "passed"
  }
 }
