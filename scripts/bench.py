@@ -4,6 +4,13 @@
         Concurrent sessions, no LLM: login + account (Loans+Cards+Policy) + activity (Ops).
         Measures the platform: gateway, connectors, retries, mock-system latency.
 
+    python scripts/bench.py conversations --url http://localhost:8080 --steps 250,500,1000
+        N customers each hold a chat WebSocket open AT THE SAME TIME and ask three questions in turn
+        (next EMI, failed payments, foreclosure), answered by the fast lane: the whole path (sign-in,
+        sessions, rate limits, tools, connectors, simulated systems, grounding) except the language
+        model, whose capacity is the provider's quota, not this service. Run the server without a model
+        key for this so no question can reach the model.
+
     python scripts/bench.py journeys --url http://localhost:8080 --runs 3
         The brief's customer journeys over the real chat WebSocket with the real LLM:
         time to first progress event, and end-to-end turn time.
@@ -99,6 +106,81 @@ async def platform(url: str, steps: list[int]) -> tuple[str, dict]:
     return "\n".join(md), {"client": raw, "server": server}
 
 
+QUESTIONS = ["What's my next EMI?", "Any failed payments?", "Am I eligible for foreclosure without a penalty?"]
+
+
+async def conversations(url: str, steps: list[int]) -> tuple[str, dict]:
+    rows, raw = [], {}
+    conn = aiohttp.TCPConnector(limit=0, force_close=False)
+    async with aiohttp.ClientSession(connector=conn, cookie_jar=aiohttp.DummyCookieJar(),
+                                     timeout=aiohttp.ClientTimeout(total=300)) as h:
+        from ledgerflow import config
+        admin = {"X-Admin-Token": config.ADMIN_TOKEN} if config.ADMIN_TOKEN else {}
+        await h.post(f"{url}/api/metrics/reset", headers=admin)
+        for n in steps:
+            connected = arrived = 0              # arrived: open, or failed before opening
+            all_open = asyncio.Event()
+            lat: dict[str, list[float]] = {"login": [], "connect": [], "turn": []}
+            errors: list[str] = []
+            peak_open = 0
+
+            async def one(i, lat=lat, errors=errors, n=n, all_open=all_open):
+                nonlocal connected, arrived, peak_open
+                phone, dob = CUSTOMERS[i % len(CUSTOMERS)]
+                try:
+                    t = time.perf_counter()
+                    sid = await login(h, url, phone, dob)
+                    lat["login"].append((time.perf_counter() - t) * 1000)
+                    t = time.perf_counter()
+                    async with h.ws_connect(f"{url.replace('http', 'ws', 1)}/ws/chat",
+                                            headers={"X-Session": sid, "Origin": url}, heartbeat=None) as ws:
+                        lat["connect"].append((time.perf_counter() - t) * 1000)
+                        connected += 1
+                        arrived += 1
+                        peak_open = max(peak_open, connected)
+                        if arrived == n:
+                            all_open.set()
+                        await asyncio.wait_for(all_open.wait(), 120)      # every conversation open at once
+                        for q in QUESTIONS:
+                            t = time.perf_counter()
+                            await ws.send_json({"type": "user", "text": q})
+                            while True:
+                                ev = await ws.receive_json(timeout=60)
+                                if ev["type"] == "assistant":
+                                    if "unavailable" in ev["text"] or "couldn't reach" in ev["text"]:
+                                        errors.append("degraded answer")
+                                if ev["type"] == "trace":
+                                    break
+                            lat["turn"].append((time.perf_counter() - t) * 1000)
+                        connected -= 1
+                except Exception as e:  # noqa: BLE001
+                    errors.append(type(e).__name__)
+                    if not all_open.is_set():
+                        arrived += 1
+                        if arrived == n:
+                            all_open.set()
+            t0 = time.perf_counter()
+            await asyncio.gather(*[one(i) for i in range(n)])
+            wall = time.perf_counter() - t0
+            for k, v in lat.items():
+                rows.append((n, k, len(v), pct(v, 50), pct(v, 95), pct(v, 99)))
+            rows.append((n, "errors", len(errors), 0, 0, 0))
+            raw[n] = {"wall_s": wall, "peak_open": peak_open, **lat, "errors": errors[:50]}
+            print(f"  {n} concurrent conversations: peak open {peak_open}, {len(lat['turn'])} turns in {wall:.1f}s, "
+                  f"turn p50 {pct(lat['turn'], 50):.0f} ms p95 {pct(lat['turn'], 95):.0f} ms, errors={len(errors)}")
+        async with h.get(f"{url}/api/metrics", headers=admin) as r:
+            server = await r.json()
+    md = ["| Concurrent conversations | Step | n | p50 ms | p95 ms | p99 ms |", "|---|---|---|---|---|---|"]
+    md += [f"| {n} | {k} | {c} | {a:.0f} | {b:.0f} | {d:.0f} |" for n, k, c, a, b, d in rows]
+    md += ["", "Each conversation: sign in, open the chat WebSocket, wait until ALL are open, then ask three "
+           "questions in turn (fast lane, no language model). `turn` is question sent → answer and trace received.",
+           "", "Server-side (includes simulated system latency, bulkheads, retries):", "",
+           "| Metric | n | p50 | p95 | p99 |", "|---|---|---|---|---|"]
+    md += [f"| {k} | {v['n']} | {v['p50']} | {v['p95']} | {v['p99']} |"
+           for k, v in server["latency_ms"].items() if k.startswith(("connector.", "tool.", "turn."))]
+    return "\n".join(md), {"client": raw, "server": server}
+
+
 async def journeys(url: str, runs: int) -> tuple[str, dict]:
     results: dict[str, list[dict]] = {}
     async with aiohttp.ClientSession(cookie_jar=aiohttp.DummyCookieJar()) as h:
@@ -146,7 +228,7 @@ async def journeys(url: str, runs: int) -> tuple[str, dict]:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["platform", "journeys"])
+    ap.add_argument("mode", choices=["platform", "conversations", "journeys"])
     ap.add_argument("--url", default="http://localhost:8080")
     ap.add_argument("--steps", default="25,50,100,200")
     ap.add_argument("--runs", type=int, default=3)
@@ -154,6 +236,8 @@ def main():
     url = a.url.rstrip("/")
     if a.mode == "platform":
         md, raw = asyncio.run(platform(url, [int(x) for x in a.steps.split(",")]))
+    elif a.mode == "conversations":
+        md, raw = asyncio.run(conversations(url, [int(x) for x in a.steps.split(",")]))
     else:
         md, raw = asyncio.run(journeys(url, a.runs))
     out = ROOT / "reports"
