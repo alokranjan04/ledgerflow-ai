@@ -1,0 +1,376 @@
+{
+ "results": {
+  "J1 EMI increase + \u20b950k prepayment :: My EMI increased this month. Why? And if I make ": [
+   {
+    "total_ms": 3721.23060002923,
+    "first_tool_ms": 1388.542300031986,
+    "tools": [
+     "explain_emi_change",
+     "simulate_prepayment"
+    ],
+    "reply": "On your **Personal loan L-10001**, your EMI increased because of a quarterly EBLR reset following an RBI repo rate increase of 0.75% (under clause PL-FL-3.4). \n* **Previous EMI:** \u20b917,112.63 (at 10.25%)\n* **New EMI:** **\u20b917,323.49** (at 11.00%, effective November 5, 2026)\n\nIf you make a **\u20b950,000** "
+   },
+   {
+    "total_ms": 3211.0100999707356,
+    "first_tool_ms": 1444.654899998568,
+    "tools": [
+     "explain_emi_change",
+     "simulate_prepayment"
+    ],
+    "reply": "Your EMI on your Personal loan L-10001 increased this month from **\u20b917,112.63** to **\u20b917,323.49** (a difference of **\u20b9210.86**). This was due to a quarterly EBLR reset on 25 September 2026 following an RBI repo rate increase of 0.75%, raising your interest rate from 10.25% to 11.00% (under clause PL"
+   }
+  ],
+  "J2 intent change (next EMI \u2192 last payment \u2192 \u20b920k tenure) :: What's my next EMI?": [
+   {
+    "total_ms": 309.2257000389509,
+    "first_tool_ms": 29.323499999009073,
+    "tools": [
+     "get_loan_summary"
+    ],
+    "reply": "Your next EMI is **\u20b917,323.49**, due on **5 December 2026**. You have 40 EMIs left; outstanding principal is \u20b95,77,913.11."
+   },
+   {
+    "total_ms": 549.5837000198662,
+    "first_tool_ms": 33.03340001730248,
+    "tools": [
+     "get_loan_summary"
+    ],
+    "reply": "Your next EMI is **\u20b917,323.49**, due on **5 December 2026**. You have 40 EMIs left; outstanding principal is \u20b95,77,913.11."
+   }
+  ],
+  "J2 intent change (next EMI \u2192 last payment \u2192 \u20b920k tenure) :: Actually, check my last payment first.": [
+   {
+    "total_ms": 334.4510999741033,
+    "first_tool_ms": 29.147099994588643,
+    "tools": [
+     "get_last_payment"
+    ],
+    "reply": "Your last payment of **\u20b917,323.49** (EMI due 5 November 2026) was **success** on 5 November 2026 via NACH auto-debit."
+   },
+   {
+    "total_ms": 439.12519997684285,
+    "first_tool_ms": 34.60179996909574,
+    "tools": [
+     "get_last_payment"
+    ],
+    "reply": "Your last payment of **\u20b917,323.49** (EMI due 5 November 2026) was **success** on 5 November 2026 via NACH auto-debit."
+   }
+  ],
+  "J2 intent change (next EMI \u2192 last payment \u2192 \u20b920k tenure) :: Okay, now tell me whether paying \u20b920,000 extra w": [
+   {
+    "total_ms": 2510.5501000070944,
+    "first_tool_ms": 1137.191999994684,
+    "tools": [
+     "simulate_prepayment"
+    ],
+    "reply": "Yes, paying \u20b920,000 extra on your Personal loan L-10001 would reduce your tenure by **1 month** (from 40 to 39 months) while keeping your EMI at **\u20b917,323.49**. This would save you **\u20b98,705.84** in total interest (under clause PL-FL-5.2, with zero prepayment charges). \n\nAlternatively, you could choo"
+   },
+   {
+    "total_ms": 2339.8042999906465,
+    "first_tool_ms": 1168.8492000102997,
+    "tools": [
+     "simulate_prepayment"
+    ],
+    "reply": "Yes, paying \u20b920,000 extra on your Personal loan L-10001 would reduce your tenure by 1 month (from 40 EMIs remaining down to 39), saving you **\u20b98,705.84** in total interest (under clause PL-FL-5.2). \n\nAlternatively, you could choose to keep the same tenure (40 EMIs) and reduce your EMI by **\u20b9599.52**"
+   }
+  ],
+  "J3 failed payments \u2192 dispute :: Show me the payments that failed in the last six": [
+   {
+    "total_ms": 4163.530600024387,
+    "first_tool_ms": 1376.9708999898285,
+    "tools": [
+     "get_payments"
+    ],
+    "reply": "In the last six months, there were 3 failed NACH auto-debit attempts on your **Personal loan L-10001**:\n\n* **September 5, 2026** (Instalment 18): **\u20b917,112.63** \u2014 Failed due to insufficient balance in your linked bank account. A bounce charge of **\u20b9500** plus **\u20b990** GST was applied.\n* **July 5, 202"
+   },
+   {
+    "total_ms": 3370.2884999802336,
+    "first_tool_ms": 1292.908500006888,
+    "tools": [
+     "get_payments"
+    ],
+    "reply": "For your **Personal loan L-10001**, there were 3 failed payments in the last six months. Each failed debit was later collected by a retry:\n\n1. **September 5, 2026** (Instalment 18)\n   - **Amount:** **\u20b917,112.63**\n   - **Reason:** Insufficient balance in the linked bank account on the debit date.\n   "
+   }
+  ],
+  "J3 failed payments \u2192 dispute :: Please raise a dispute for the September one, I ": [
+   {
+    "total_ms": 3249.267599952873,
+    "first_tool_ms": 1280.5280999746174,
+    "tools": [
+     "propose_payment_dispute"
+    ],
+    "reply": "I have prepared a request to dispute the failed EMI debit of **\u20b917,112.63** (due on September 5, 2026) and request a reversal of the **\u20b9590** bounce charge (including GST). \n\nShall I go ahead?"
+   },
+   {
+    "total_ms": 3481.177099980414,
+    "first_tool_ms": 1283.3549999631941,
+    "tools": [
+     "propose_payment_dispute"
+    ],
+    "reply": "I have prepared a dispute for the failed EMI debit of **\u20b917,112.63** from September 5, 2026 (Payment ID: P-10001-018F) and the associated bounce charge of **\u20b9590** including GST, noting that you had sufficient funds in your account.\n\nShall I go ahead?"
+   }
+  ],
+  "J3 failed payments \u2192 dispute :: Yes, go ahead.": [
+   {
+    "total_ms": 2195.4004999715835,
+    "first_tool_ms": 1038.3383000153117,
+    "tools": [
+     "confirm_action"
+    ],
+    "reply": "A 6-digit verification code has been sent to your registered mobile number ending in 0001. Please read it out or type it here so I can complete your dispute request."
+   },
+   {
+    "total_ms": 2356.7803000332788,
+    "first_tool_ms": 1170.769200020004,
+    "tools": [
+     "confirm_action"
+    ],
+    "reply": "A 6-digit verification code has been sent to your registered mobile number. Please read out or type the code so I can complete your dispute request."
+   }
+  ],
+  "J4 foreclosure eligibility :: Am I eligible for foreclosure without a penalty?": [
+   {
+    "total_ms": 242.71999998018146,
+    "first_tool_ms": 36.422899982426316,
+    "tools": [
+     "check_foreclosure"
+    ],
+    "reply": "You can foreclose, but a **4% charge** applies (clause PL-FX-6.2): \u20b913,162.08 + GST \u20b92,369.17. Payoff as of 28 November 2026: **\u20b93,47,382.39**. The charge drops to 2% from 5 September 2027."
+   },
+   {
+    "total_ms": 254.65499999700114,
+    "first_tool_ms": 96.17539995815605,
+    "tools": [
+     "check_foreclosure"
+    ],
+    "reply": "You can foreclose, but a **4% charge** applies (clause PL-FX-6.2): \u20b913,162.08 + GST \u20b92,369.17. Payoff as of 28 November 2026: **\u20b93,47,382.39**. The charge drops to 2% from 5 September 2027."
+   }
+  ],
+  "J5 options :: Based on my current loan and applicable terms, w": [
+   {
+    "total_ms": 3140.5282000196166,
+    "first_tool_ms": 1179.9311999930069,
+    "tools": [
+     "get_servicing_options"
+    ],
+    "reply": "For your Personal loan (**L-10001**), here is your current position and available options:\n\n* **Outstanding Principal:** \u20b95,77,913.11\n* **Interest Rate:** 11.00%\n* **Current EMI:** \u20b917,323.49\n* **EMIs Paid / Remaining:** 20 paid, 40 remaining\n\n### Your Options:\n\n1. **Part-Prepayment** (under clause "
+   },
+   {
+    "total_ms": 3969.3048000335693,
+    "first_tool_ms": 1036.1321999807842,
+    "tools": [
+     "get_servicing_options"
+    ],
+    "reply": "For your Personal loan (L-10001), your current position is:\n- **Outstanding Principal:** \u20b95,77,913.11\n- **Interest Rate:** 11.00%\n- **Current EMI:** \u20b917,323.49\n- **EMIs Paid:** 20 | **Remaining:** 40\n\nHere are your available servicing options under our policy terms:\n\n1. **Part-Prepayment** (Clause P"
+   }
+  ]
+ },
+ "server": {
+  "latency_ms": {
+   "connector.cards": {
+    "n": 8,
+    "p50": 161.3,
+    "p95": 451.5,
+    "p99": 451.5,
+    "max": 451.5
+   },
+   "connector.crm": {
+    "n": 28,
+    "p50": 47.4,
+    "p95": 118.9,
+    "p99": 203.6,
+    "max": 203.6
+   },
+   "connector.loans": {
+    "n": 62,
+    "p50": 93.0,
+    "p95": 271.4,
+    "p99": 281.4,
+    "max": 484.2
+   },
+   "connector.ops": {
+    "n": 4,
+    "p50": 376.1,
+    "p95": 960.0,
+    "p99": 960.0,
+    "max": 960.0
+   },
+   "connector.payments": {
+    "n": 14,
+    "p50": 470.8,
+    "p95": 959.9,
+    "p99": 962.9,
+    "max": 962.9
+   },
+   "connector.policy": {
+    "n": 5,
+    "p50": 102.4,
+    "p95": 283.1,
+    "p99": 283.1,
+    "max": 283.1
+   },
+   "durable.write": {
+    "n": 16,
+    "p50": 33.5,
+    "p95": 60.3,
+    "p99": 62.6,
+    "max": 62.6
+   },
+   "llm.text.call": {
+    "n": 56,
+    "p50": 1166.3,
+    "p95": 1664.2,
+    "p99": 2024.9,
+    "max": 2111.1
+   },
+   "tool.check_foreclosure": {
+    "n": 6,
+    "p50": 204.9,
+    "p95": 352.3,
+    "p99": 352.3,
+    "max": 352.3
+   },
+   "tool.confirm_action": {
+    "n": 6,
+    "p50": 1.0,
+    "p95": 376.9,
+    "p99": 376.9,
+    "max": 376.9
+   },
+   "tool.explain_emi_change": {
+    "n": 4,
+    "p50": 322.4,
+    "p95": 390.2,
+    "p99": 390.2,
+    "max": 390.2
+   },
+   "tool.get_card_summary": {
+    "n": 2,
+    "p50": 207.4,
+    "p95": 307.5,
+    "p99": 307.5,
+    "max": 307.5
+   },
+   "tool.get_card_transactions": {
+    "n": 2,
+    "p50": 259.0,
+    "p95": 317.3,
+    "p99": 317.3,
+    "max": 317.3
+   },
+   "tool.get_last_payment": {
+    "n": 4,
+    "p50": 303.6,
+    "p95": 403.1,
+    "p99": 403.1,
+    "max": 403.1
+   },
+   "tool.get_loan_summary": {
+    "n": 6,
+    "p50": 278.8,
+    "p95": 515.3,
+    "p99": 515.3,
+    "max": 515.3
+   },
+   "tool.get_payments": {
+    "n": 4,
+    "p50": 939.3,
+    "p95": 1158.2,
+    "p99": 1158.2,
+    "max": 1158.2
+   },
+   "tool.get_servicing_options": {
+    "n": 3,
+    "p50": 433.0,
+    "p95": 1272.9,
+    "p99": 1272.9,
+    "max": 1272.9
+   },
+   "tool.propose_card_dispute": {
+    "n": 1,
+    "p50": 613.9,
+    "p95": 613.9,
+    "p99": 613.9,
+    "max": 613.9
+   },
+   "tool.propose_payment_dispute": {
+    "n": 3,
+    "p50": 696.2,
+    "p95": 804.4,
+    "p99": 804.4,
+    "max": 804.4
+   },
+   "tool.request_human_agent": {
+    "n": 1,
+    "p50": 1221.6,
+    "p95": 1221.6,
+    "p99": 1221.6,
+    "max": 1221.6
+   },
+   "tool.simulate_prepayment": {
+    "n": 7,
+    "p50": 251.4,
+    "p95": 601.1,
+    "p99": 601.1,
+    "max": 601.1
+   },
+   "tool.verify_otp": {
+    "n": 2,
+    "p50": 0.7,
+    "p95": 1.2,
+    "p99": 1.2,
+    "max": 1.2
+   },
+   "turn.text.fast_lane": {
+    "n": 19,
+    "p50": 280.3,
+    "p95": 516.6,
+    "p99": 1160.8,
+    "max": 1160.8
+   },
+   "turn.text.total": {
+    "n": 46,
+    "p50": 2209.9,
+    "p95": 3938.9,
+    "p99": 4201.1,
+    "max": 4201.1
+   }
+  },
+  "counters": {
+   "auth.login_ok": 28,
+   "kpi.sessions_engaged": 28,
+   "grounding.checked": 27,
+   "fastlane.answered": 19,
+   "connector.policy.cache_hit": 18,
+   "stepup.sent": 4,
+   "stepup.verified": 2,
+   "kpi.actions_executed": 2,
+   "kpi.handoffs": 1,
+   "tool.needs_account_choice": 1
+  },
+  "breakers": {
+   "crm": "closed",
+   "loans": "closed",
+   "payments": "closed",
+   "policy": "closed",
+   "ops": "closed",
+   "cards": "closed"
+  },
+  "llm_breakers": {
+   "gemini-flash-lite-latest": "closed",
+   "gemini-flash-latest": "closed"
+  },
+  "active_sessions": 28,
+  "state_backend": "memory",
+  "kpis": {
+   "sessions_engaged": 28,
+   "handoffs": 1,
+   "actions_executed": 2,
+   "containment_rate": 0.9643,
+   "step_up_sent": 4,
+   "step_up_verified": 2,
+   "step_up_failed": 0
+  },
+  "role": "all"
+ }
+}

@@ -162,14 +162,24 @@ check and offers a ticket. The Ops panel switches any system to slow, flaky or d
 
 ## 7. Performance evidence
 
-- `scripts/bench.py platform`: concurrent sessions without the LLM. Local run, single process, with the
-  default simulated latency and 3% payment errors: 200 concurrent sessions, **0 errors**. Account lookup
-  (Loans + Cards + Policy) p50 843 ms / p95 1.13 s at 200 sessions, against 281 / 684 ms at 25. The
-  growth is CPU in the in-process mock (amortisation recomputed per request), not the gateway.
-- `scripts/bench.py journeys`: the brief's journeys over the real chat WebSocket with the real model,
-  showing time to first progress event and end-to-end turn time. Results go to `reports/`.
-- Live: `/api/metrics` gives p50/p95/p99 per connector, tool, LLM call, text turn and voice
-  "customer stopped speaking → first audio". The Ops panel shows the per-turn waterfall.
+Measured on the deployed service (Cloud Run, asia-south1) from a client in India, 28 Nov 2026. Reports are
+in `reports/`, and every number below can be re-run with the scripts named.
+
+| What | Result | Target | Script |
+|---|---|---|---|
+| Voice: end of a **spoken** question → first agent audio | **0.81 s p50, 0.88 s p95** (8 turns, right tool every time) | < 1.0 s p50, < 2.0 s p95 | `voice_bench.py --speech` |
+| Voice: end of question → the answer itself (after the tool) | 1.6–2.0 s typical | — | same |
+| Text, fast lane (next EMI, last payment, foreclosure) | 0.25–0.55 s end to end | — | `bench.py journeys` |
+| Text, model turns (EMI change + prepayment, options, dispute) | 2.3–3.8 s p50; the dispute turn 3.4 s (was 9.3 s) | — | same |
+| Accuracy on the real model, 18 golden conversations | 100% numbers, tools, citations, safety, language, accounts | 100% / ≥95% | `eval.py` |
+| 1,000 concurrent conversations (no model, one process) | all answered; p50 4.3 s; 7.6% degraded by the simulated payments system | — | `bench.py conversations` |
+
+How the voice number was reached: the model's default end-of-speech wait gave 1.8 s; a 400 ms pause
+(`VOICE_END_SILENCE_MS`) gives 0.81 s with every question still heard whole; the "one moment" clip covers
+the tool round, so the customer hears the agent within a second while the figures are fetched.
+
+Live: `/api/metrics` gives p50/p95/p99 per connector, tool, LLM call, text turn and voice "customer stopped
+speaking → first audio"; the Ops panel shows each turn's waterfall; Cloud Monitoring holds the KPIs.
 
 ## 8. Toward 1,000 concurrent conversations
 
