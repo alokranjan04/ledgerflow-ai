@@ -170,9 +170,19 @@ class VoiceConversation:
                                  "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {
                                      "voiceName": self.wf.voice or config.GEMINI_VOICE}}}},
             "inputAudioTranscription": {}, "outputAudioTranscription": {},
+            **self.turn_detection(),
             "systemInstruction": {"parts": [{"text": system}]},
             "tools": REGISTRY.declarations(self.wf.tools),
         }}
+
+    def turn_detection(self) -> dict:
+        """How quickly a pause ends the customer's turn (REQ-VOX-001.13)."""
+        silence = config.PHONE_END_SILENCE_MS if self.tr.mode == "phone" else config.VOICE_END_SILENCE_MS
+        if not silence:
+            return {}
+        return {"realtimeInputConfig": {"automaticActivityDetection": {
+            "endOfSpeechSensitivity": "END_SENSITIVITY_HIGH" if config.VOICE_END_SENSITIVITY == "high"
+            else "END_SENSITIVITY_LOW", "silenceDurationMs": silence}}}
 
     async def run(self) -> None:
         self.log("voice session started")

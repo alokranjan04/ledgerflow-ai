@@ -190,7 +190,7 @@ class TextAgent:
             if not intents:
                 return None
             calls = [{"name": fastlane.INTENTS[i][0], "args": dict(fastlane.INTENTS[i][1])} for i in intents]
-            hint = accounts.hint_from_text(text)          # "my car loan", "card ending 7781"
+            hint = accounts.soft_hint(text)               # "my car loan", "rewards card", "card ending 7781"
             for c in calls:
                 params = REGISTRY.specs[c["name"]].params
                 for key in ("loan_id", "card_id"):

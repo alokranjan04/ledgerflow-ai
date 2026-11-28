@@ -82,8 +82,8 @@ async def search_policy(ctx: ToolContext, question: str) -> dict:
 
 @REGISTRY.tool(
     "list_accounts",
-    "Every loan and card the customer holds with us, with IDs and product names. Use when they ask what they "
-    "hold, or to tell accounts apart before asking which one they mean.")
+    "Every loan and card the customer holds with us, with IDs and product names. Only for questions like "
+    "'what loans or cards do I have'. Not needed before other tools: they pick the account or say needs_choice.")
 async def list_accounts(ctx: ToolContext) -> ToolResult:
     loans, cards = await asyncio.gather(
         ctx.connectors["loans"].get(f"/customers/{ctx.customer_id}/loans", trace=ctx.trace),

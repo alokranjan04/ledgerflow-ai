@@ -21,10 +21,10 @@ from ledgerflow.voice.fillers import FILLER_DIR, PHRASES  # noqa: E402
 MODEL = "gemini-3.8-flash-tts"
 
 
-def synth(text: str) -> bytes:
+def synth(text: str, voice: str = "") -> bytes:
     body = {"contents": [{"parts": [{"text": text}]}],   # a style prefix gets read aloud by this model
             "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {
-                "prebuiltVoiceConfig": {"voiceName": config.GEMINI_VOICE}}}}}
+                "prebuiltVoiceConfig": {"voiceName": voice or config.GEMINI_VOICE}}}}}
     req = urllib.request.Request(f"{config.GEMINI_REST}/models/{MODEL}:generateContent",
                                  data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json", "x-goog-api-key": config.GEMINI_API_KEY})

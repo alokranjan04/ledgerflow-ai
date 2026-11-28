@@ -85,6 +85,13 @@ SYSTEMS_AUDIENCE = env("SYSTEMS_AUDIENCE")
 
 # Voice: play a pre-recorded "one moment" clip the instant a tool call starts (no model involvement).
 VOICE_FILLER = env("VOICE_FILLER", "1") == "1"
+# End-of-speech detection: how long a pause ends the customer's turn. Shorter = faster replies, but a
+# speaker who pauses mid-sentence may be cut off. Measured with spoken questions: the model's default gave
+# 1.8 s to first audio, 400 ms gives 0.81 s with every question still heard whole. Phone lines are noisier
+# and callers pause more, so they wait longer. 0 = the model's default.
+VOICE_END_SILENCE_MS = int(env("VOICE_END_SILENCE_MS", "400"))
+PHONE_END_SILENCE_MS = int(env("PHONE_END_SILENCE_MS", "700"))
+VOICE_END_SENSITIVITY = env("VOICE_END_SENSITIVITY", "high").lower()
 
 
 # ---- Durable records ----------------------------------------------------------

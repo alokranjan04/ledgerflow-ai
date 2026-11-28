@@ -19,6 +19,12 @@ SYNONYMS = {"car": "car", "auto": "car", "vehicle": "car", "gaadi": "car", "ग�
             "personal": "personal", "पर्सनल": "personal"}
 
 
+# words that never pick an account on their own
+STOP = {"loan", "card", "my", "the", "credit", "account", "mera", "meri", "मेरा", "मेरी", "लोन", "कार्ड", "wala", "wali",
+        "one", "ending", "what", "s", "is", "on", "of", "a", "an", "for", "and", "due", "emi", "next", "minimum",
+        "statement", "balance", "me", "i", "when", "how", "much", "can", "do", "does", "it", "this", "that"}
+
+
 class NeedsChoice(Exception):
     """More than one account fits; the customer must say which."""
 
@@ -52,18 +58,25 @@ def match(accounts: list[dict], hint: str) -> list[dict]:
         by_digits = [a for a in accounts if any(a["id"].endswith(d) or a.get("last4", "") == d[-4:] for d in digits)]
         if by_digits:
             return by_digits
-    want = _words(h) - {"loan", "card", "my", "the", "credit", "account", "mera", "meri", "मेरा", "मेरी", "लोन",
-                        "कार्ड", "wala", "wali", "one", "ending"}
+    want = _words(h) - STOP
     if not want:
         return []
     return [a for a in accounts if want & _words(a["label"])]
 
 
+SOFT = "~"     # a hint taken from the customer's whole message: use it only if it names an account
+
+
 def pick(memory: dict, kind: str, accounts: list[dict], hint: str = "") -> dict:
-    """The account to use; remembers it for follow-ups. accounts: [{"id", "label", ...}]"""
+    """The account to use; remembers it for follow-ups. accounts: [{"id", "label", ...}]
+    A hint starting with SOFT is the customer's whole question (fast lane): it counts only when it
+    names exactly one account, otherwise the normal rules apply (only account, then the remembered one)."""
     if not accounts:
         raise ValueError(f"The customer has no active {kind} with us.")
     key = f"current_{kind}"
+    if hint and hint.startswith(SOFT):
+        found = match(accounts, hint[1:])
+        hint = found[0]["id"] if len(found) == 1 else ""
     if hint and hint.strip():
         found = match(accounts, hint)
         if len(found) == 1:
@@ -82,8 +95,14 @@ def pick(memory: dict, kind: str, accounts: list[dict], hint: str = "") -> dict:
     raise NeedsChoice(kind, [{"id": a["id"], "label": a["label"]} for a in accounts])
 
 
+def soft_hint(text: str) -> str:
+    """The customer's message as a soft hint (see pick): matched against their own account names,
+    so any product word works ("rewards card", "platinum"), not only the words listed here."""
+    return SOFT + (text or "") if text else ""
+
+
 def hint_from_text(text: str) -> str:
-    """The part of a customer's message that names an account, for the fast lane."""
+    """The part of a customer's message that names an account (IDs, last digits, loan words)."""
     t = (text or "").lower()
     m = re.search(r"\b(?:l-\d{4,6}|card-\d{4})\b", t)
     if m:

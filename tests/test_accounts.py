@@ -199,3 +199,23 @@ async def test_created_customers_get_ids_that_never_collide_with_the_file(tmp_pa
     finally:
         await store.close()
         await srv.close()
+
+
+@pytest.mark.req("REQ-ACC-001.4")
+def test_a_whole_question_picks_an_account_only_when_it_names_one():
+    from ledgerflow.platform.accounts import soft_hint
+    assert pick({}, "card", CARDS, soft_hint("What's the minimum due on my rewards card?"))["id"] == "CARD-5011"
+    assert pick({}, "loan", LOANS, soft_hint("When is the next EMI on my car loan?"))["id"] == "L-10011"
+    memory = {"current_loan": "L-10010"}
+    assert pick(memory, "loan", LOANS, soft_hint("And when is the next EMI due?"))["id"] == "L-10010"   # stays
+    with pytest.raises(NeedsChoice):
+        pick({}, "loan", LOANS, soft_hint("What's my next EMI?"))
+
+
+@pytest.mark.req("REQ-ACC-001.4")
+async def test_fast_lane_finds_a_card_by_its_name(env, monkeypatch):
+    monkeypatch.setattr(config, "FAST_LANE", True)
+    s, _ = await env["login"](*ARJUN, workflow="card_servicing")
+    reply = await TextAgent(NoModel(), env["wfs"], env["con"], env["actions"]).turn(
+        s, "What's the minimum due on my rewards card?", _noop)
+    assert reply.startswith("**Rewards card ending 7781**: ")

@@ -20,9 +20,13 @@ WORKFLOW_DIR = ROOT / "workflows"
 ACCOUNTS = """
 SEVERAL ACCOUNTS
 - A customer may hold several loans (home, car, personal) or cards. Tools take loan_id / card_id.
-- If a tool answers needs_choice, ask which account they mean, naming each option from its result
+- Call the tool for the question straight away (an EMI, payment or foreclosure question is about a
+  loan; a statement or transaction question is about a card). Do NOT call list_accounts first and do
+  NOT ask "which account" yourself: the tool picks the only account, or answers needs_choice.
+- Only when a tool answers needs_choice, ask which one, naming each option from its result
   ("your Home loan L-10010 or your Car loan L-10011?"), and call again with the one they choose.
   Never guess, and never combine figures from different accounts.
+- list_accounts is only for "what do I hold with you" questions.
 - Once the customer has said which account, follow-ups stay on it until they name another.
 - Always say which account a figure belongs to when they hold more than one.
 """

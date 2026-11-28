@@ -304,3 +304,15 @@ def test_clips_are_short_and_carry_no_figures():
         assert not re.search(r"[\d०-९₹]", text)
         secs = len(fillers.clip(lang)) / 48000
         assert 0.5 < secs < 2.5, (lang, secs)
+
+
+@pytest.mark.req("REQ-VOX-001.13")
+async def test_turn_ends_after_a_short_pause_in_browser_and_a_longer_one_on_the_phone(env, monkeypatch):
+    s, _ = await env["login"](*PRIYA)
+    browser = VoiceConversation(s, env["wfs"]["loan_servicing"], FakeTransport("voice"), env["con"], env["actions"])
+    phone = VoiceConversation(s, env["wfs"]["loan_servicing"], FakeTransport("phone"), env["con"], env["actions"])
+    vad = lambda v: v.setup_message()["setup"]["realtimeInputConfig"]["automaticActivityDetection"]  # noqa: E731
+    assert vad(browser) == {"endOfSpeechSensitivity": "END_SENSITIVITY_HIGH", "silenceDurationMs": 400}
+    assert vad(phone)["silenceDurationMs"] == 700
+    monkeypatch.setattr(config, "VOICE_END_SILENCE_MS", 0)
+    assert "realtimeInputConfig" not in browser.setup_message()["setup"]          # 0 = the model's default

@@ -1,67 +1,329 @@
 {
- "tests/e2e/test_ui.py::test_sign_in_account_panel_and_fast_lane_answer_with_card_and_steps": {
+ "tests/test_accounts.py::test_named_loan_is_found[L-10011-L-10011]": {
   "reqs": [
-   "REQ-UI-001.6"
+   "REQ-ACC-001.2"
   ],
   "outcome": "passed"
  },
- "tests/e2e/test_ui.py::test_model_outage_fallback_is_visible_and_useful": {
+ "tests/test_accounts.py::test_named_loan_is_found[l-10010-L-10010]": {
   "reqs": [
-   "REQ-UI-001.6"
+   "REQ-ACC-001.2"
   ],
   "outcome": "passed"
  },
- "tests/e2e/test_ui.py::test_hindi_language_switch_and_workflow_switch": {
+ "tests/test_accounts.py::test_named_loan_is_found[car-L-10011]": {
   "reqs": [
-   "REQ-UI-001.6"
+   "REQ-ACC-001.2"
   ],
   "outcome": "passed"
  },
- "tests/e2e/test_ui.py::test_wrong_details_are_refused": {
+ "tests/test_accounts.py::test_named_loan_is_found[my car loan-L-10011]": {
   "reqs": [
-   "REQ-UI-001.6"
+   "REQ-ACC-001.2"
   ],
   "outcome": "passed"
  },
- "tests/e2e/test_ui.py::test_ops_dashboard_and_agent_desk_pages_load": {
+ "tests/test_accounts.py::test_named_loan_is_found[auto-L-10011]": {
   "reqs": [
-   "REQ-UI-001.6"
+   "REQ-ACC-001.2"
   ],
   "outcome": "passed"
  },
- "tests/e2e/test_ui.py::test_accessibility_no_serious_violations": {
+ "tests/test_accounts.py::test_named_loan_is_found[gaadi wala-L-10011]": {
   "reqs": [
-   "REQ-UI-001.4"
+   "REQ-ACC-001.2"
   ],
   "outcome": "passed"
  },
- "tests/e2e/test_ui.py::test_no_console_errors_on_load": {
+ "tests/test_accounts.py::test_named_loan_is_found[home loan-L-10010]": {
   "reqs": [
-   "REQ-UI-001.6"
+   "REQ-ACC-001.2"
   ],
   "outcome": "passed"
  },
- "tests/e2e/test_ui.py::test_ended_session_returns_to_sign_in_instead_of_reconnecting_forever": {
+ "tests/test_accounts.py::test_named_loan_is_found[ghar-L-10010]": {
   "reqs": [
-   "REQ-UI-001.7"
+   "REQ-ACC-001.2"
   ],
   "outcome": "passed"
  },
- "tests/e2e/test_ui.py::test_sign_up_in_the_browser_then_use_the_assistant": {
+ "tests/test_accounts.py::test_named_loan_is_found[10011-L-10011]": {
   "reqs": [
-   "REQ-REG-001.6"
+   "REQ-ACC-001.2"
   ],
   "outcome": "passed"
  },
- "tests/e2e/test_ui.py::test_admin_panel_edits_a_policy_and_manages_a_customer": {
+ "tests/test_accounts.py::test_cards_by_last_digits_or_name": {
   "reqs": [
-   "REQ-ADM-001.7"
+   "REQ-ACC-001.2"
   ],
   "outcome": "passed"
  },
- "tests/e2e/test_ui.py::test_two_loan_customer_sees_both_and_is_asked_which": {
+ "tests/test_accounts.py::test_no_guessing_and_follow_ups_stay_on_the_chosen_account": {
+  "reqs": [
+   "REQ-ACC-001.2",
+   "REQ-ACC-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_accounts.py::test_account_words_are_picked_out_of_a_question": {
+  "reqs": [
+   "REQ-ACC-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_accounts.py::test_loan_tools_ask_then_answer_for_the_named_loan": {
+  "reqs": [
+   "REQ-ACC-001.1",
+   "REQ-ACC-001.2",
+   "REQ-ACC-001.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_accounts.py::test_card_tools_ask_then_answer_for_the_named_card": {
+  "reqs": [
+   "REQ-ACC-001.1",
+   "REQ-ACC-001.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_accounts.py::test_single_account_customers_are_unchanged": {
+  "reqs": [
+   "REQ-ACC-001.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_accounts.py::test_fast_lane_asks_which_loan_then_names_it": {
+  "reqs": [
+   "REQ-ACC-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_accounts.py::test_account_panel_lists_every_account_without_changing_the_conversation": {
   "reqs": [
    "REQ-ACC-001.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_accounts.py::test_customer_file_rules_for_several_accounts": {
+  "reqs": [
+   "REQ-ACC-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_accounts.py::test_created_customers_get_ids_that_never_collide_with_the_file": {
+  "reqs": [
+   "REQ-ACC-001.6"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_accounts.py::test_a_whole_question_picks_an_account_only_when_it_names_one": {
+  "reqs": [
+   "REQ-ACC-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_accounts.py::test_fast_lane_finds_a_card_by_its_name": {
+  "reqs": [
+   "REQ-ACC-001.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[What's my next EMI?-next_emi]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[When is my EMI due?-next_emi]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[\\u092e\\u0947\\u0930\\u0940 \\u0905\\u0917\\u0932\\u0940 EMI \\u0915\\u092c \\u0939\\u0948?-next_emi]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[Meri agli EMI kab hai?-next_emi]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[Did my last payment go through?-last_payment]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[Any failed payments?-failed_payments]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[\\u092a\\u093f\\u091b\\u0932\\u0947 \\u091b\\u0939 \\u092e\\u0939\\u0940\\u0928\\u094b\\u0902 \\u092e\\u0947\\u0902 \\u0915\\u094c\\u0928 \\u0938\\u0947 \\u092a\\u0947\\u092e\\u0947\\u0902\\u091f \\u092b\\u0947\\u0932 \\u0939\\u0941\\u090f?-failed_payments]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[Am I eligible for foreclosure without a penalty?-foreclosure]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[Why did my EMI go up?-emi_change]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[What are my options?-options]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_recognises_simple_questions[What is my outstanding balance?-outstanding]": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[My EMI increased this month. Why? And if I prepay \\u20b950,000 today, how much interest would I save?]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[Show me the payments that failed in the last six months and explain what happened.]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[Dispute the September one]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[Yes, go ahead.]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[482913]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[Would paying 20,000 extra reduce my tenure?]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[I want to talk to a person]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[\\u0905\\u0917\\u0930 \\u092e\\u0948\\u0902 \\u092a\\u091a\\u093e\\u0938 \\u0939\\u091c\\u093c\\u093e\\u0930 \\u092a\\u094d\\u0930\\u0940\\u092a\\u0947 \\u0915\\u0930\\u0942\\u0901 \\u0924\\u094b?]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_router_leaves_anything_else_to_the_model[hello]": {
+  "reqs": [
+   "REQ-AGT-005.2"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_answers_without_the_model_and_is_grounded[who0-What's my next EMI?-expect0]": {
+  "reqs": [
+   "REQ-AGT-005.1",
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_answers_without_the_model_and_is_grounded[who1-Why did my EMI go up?-expect1]": {
+  "reqs": [
+   "REQ-AGT-005.1",
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_answers_without_the_model_and_is_grounded[who2-Any failed payments?-expect2]": {
+  "reqs": [
+   "REQ-AGT-005.1",
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_answers_without_the_model_and_is_grounded[who3-Am I eligible for foreclosure without a penalty?-expect3]": {
+  "reqs": [
+   "REQ-AGT-005.1",
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_answers_without_the_model_and_is_grounded[who4-Am I eligible for foreclosure without a penalty?-expect4]": {
+  "reqs": [
+   "REQ-AGT-005.1",
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_answers_without_the_model_and_is_grounded[who5-Can I close my loan?-expect5]": {
+  "reqs": [
+   "REQ-AGT-005.1",
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_answers_in_hindi": {
+  "reqs": [
+   "REQ-AGT-005.3"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_model_outage_still_answers_what_the_systems_can": {
+  "reqs": [
+   "REQ-AGT-005.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_model_outage_with_nothing_recognisable_says_so": {
+  "reqs": [
+   "REQ-AGT-005.4"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_fast_lane_steps_aside_while_an_action_awaits_confirmation": {
+  "reqs": [
+   "REQ-AGT-005.5"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_card_questions_take_the_fast_lane_in_the_card_workflow": {
+  "reqs": [
+   "REQ-AGT-005.1"
+  ],
+  "outcome": "passed"
+ },
+ "tests/test_fastlane.py::test_options_answer_states_the_loan_position": {
+  "reqs": [
+   "REQ-AGT-005.3"
   ],
   "outcome": "passed"
  }

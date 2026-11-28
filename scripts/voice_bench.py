@@ -1,6 +1,6 @@
 """Voice latency on a real Gemini Live session through the service.
 
-    python scripts/voice_bench.py --url https://<service> [--rounds 2]
+    python scripts/voice_bench.py --url https://<service> [--rounds 2] [--speech]
 
 Signs in as a demo customer, opens /ws/voice, waits for the greeting, then sends each question as a
 text turn over the same live session and measures:
@@ -8,8 +8,13 @@ text turn over the same live session and measures:
                                                 the "one moment" clip when a tool runs)
   - question sent -> first answer audio        (the model's own speech, after the tool result)
   - question sent -> first tool step           (the agent starting to work)
-Text injection skips speech recognition and end-of-speech detection, so add the model's VAD
-end-of-turn delay (typically a few hundred ms) for a spoken turn. Writes reports/voice-latency-<ts>.md.
+Text injection skips speech recognition and end-of-speech detection.
+
+--speech measures what a caller actually waits: each question is spoken (Gemini TTS, a different voice
+from the agent's), streamed into the microphone channel in real time as 20 ms PCM frames, followed by
+silence as a real microphone would send, and every time is measured from the END of the spoken question.
+That includes speech recognition and the model's end-of-speech detection.
+Writes reports/voice-latency-<ts>.md.
 """
 from __future__ import annotations
 
@@ -73,7 +78,61 @@ async def one_turn(ws, q: str) -> dict:
             "said": " ".join(seen["said"])}
 
 
-async def main(url: str, rounds: int) -> None:
+# ------------------------------------------------------------------ spoken questions (--speech)
+CACHE = ROOT / "data" / "local" / "voice_bench"
+FRAME = 640                       # 20 ms of PCM16 mono 16 kHz
+
+
+def spoken(q: str) -> bytes:
+    """The question as 16 kHz PCM, synthesised once and cached."""
+    import hashlib
+    sys.path.insert(0, str(ROOT))
+    CACHE.mkdir(parents=True, exist_ok=True)
+    f = CACHE / (hashlib.sha1(q.encode()).hexdigest()[:12] + ".pcm")
+    if not f.exists():
+        from ledgerflow.voice.pipeline import audioop
+        from scripts.make_fillers import synth, trim
+        pcm24 = trim(synth(q, voice="Puck"))
+        f.write_bytes(audioop.ratecv(pcm24, 2, 1, 24000, 16000, None)[0])
+    return f.read_bytes()
+
+
+class Mic:
+    """Sends 20 ms frames in real time: queued speech, otherwise silence (a live microphone never stops)."""
+
+    def __init__(self, ws):
+        self.ws, self.queue, self.speech_done = ws, [], asyncio.Event()
+        self.task = asyncio.create_task(self.run())
+
+    def say(self, pcm: bytes) -> None:
+        self.speech_done.clear()
+        self.queue = [pcm[i:i + FRAME] for i in range(0, len(pcm), FRAME)]
+
+    async def run(self) -> None:
+        silence, nxt = b"\x00" * FRAME, time.perf_counter()
+        while not self.ws.closed:
+            frame = self.queue.pop(0) if self.queue else silence
+            if not self.queue and frame is not silence:
+                self.ended_at = time.perf_counter() + 0.02
+                self.speech_done.set()
+            await self.ws.send_bytes(frame)
+            nxt += 0.02
+            await asyncio.sleep(max(0.0, nxt - time.perf_counter()))
+
+
+async def spoken_turn(ws, mic: Mic, q: str) -> dict:
+    mic.say(spoken(q))
+    seen = {"tools": [], "said": []}
+    reader = asyncio.create_task(until_turn_complete(ws, seen, cap_s=60))
+    await mic.speech_done.wait()
+    t0 = mic.ended_at                 # the end of the spoken question
+    await reader
+    ms = lambda k: round((seen[k] - t0) * 1000) if k in seen else None  # noqa: E731
+    return {"q": q, "first_audio_ms": ms("audio_at"), "answer_audio_ms": ms("answer_at"), "filler": bool(seen.get("filler")),
+            "first_step_ms": ms("step_at"), "tools": seen["tools"], "said": " ".join(seen["said"])}
+
+
+async def main(url: str, rounds: int, speech: bool = False) -> None:
     results = []
     async with aiohttp.ClientSession() as h:
         for _ in range(rounds):
@@ -84,12 +143,15 @@ async def main(url: str, rounds: int) -> None:
                 t = time.perf_counter()
                 await until_turn_complete(ws, {"tools": [], "said": []})   # setup + greeting
                 print(f"  session ready + greeting in {(time.perf_counter() - t):.1f}s")
+                mic = Mic(ws) if speech else None
                 for q in QUESTIONS:
-                    res = await one_turn(ws, q)
+                    res = await (spoken_turn(ws, mic, q) if speech else one_turn(ws, q))
                     results.append(res)
                     print(f"  {res['first_audio_ms'] or -1:7.0f} ms to first audio · {res['answer_audio_ms'] or -1:7.0f} ms to "
                           f"answer · clip={res['filler']} · tools={res['tools']} · {q}")
                     print(f"           said: {res['said'][:160]}")
+                if mic:
+                    mic.task.cancel()
                 await ws.send_str(json.dumps({"type": "stop"}))
     def pct(key):
         xs = sorted(r[key] for r in results if r[key] is not None)
@@ -99,8 +161,11 @@ async def main(url: str, rounds: int) -> None:
     p50, p95, n = pct("first_audio_ms")
     a50, a95, _ = pct("answer_audio_ms")
     md = [f"# Voice latency — {time.strftime('%Y-%m-%d %H:%M')} — {url}", "",
-          "Real Gemini Live session through the service; questions injected as text turns (excludes speech "
-          "recognition and end-of-speech detection).", "",
+          ("Real Gemini Live session through the service; each question SPOKEN into the microphone channel in real "
+           "time, times measured from the end of the spoken question (includes speech recognition and end-of-speech "
+           "detection)." if speech else
+           "Real Gemini Live session through the service; questions injected as text turns (excludes speech "
+           "recognition and end-of-speech detection)."), "",
           "| Question | First tool step (ms) | First audio (ms) | Answer audio (ms) | One-moment clip | Tools |",
           "|---|---|---|---|---|---|"]
     md += [f"| {r['q']} | {r['first_step_ms'] and round(r['first_step_ms'])} | {r['first_audio_ms'] and round(r['first_audio_ms'])} | "
@@ -118,5 +183,6 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://localhost:8080")
     ap.add_argument("--rounds", type=int, default=2)
+    ap.add_argument("--speech", action="store_true", help="speak the questions (real-time audio) instead of typing them")
     a = ap.parse_args()
-    asyncio.run(main(a.url.rstrip("/"), a.rounds))
+    asyncio.run(main(a.url.rstrip("/"), a.rounds, a.speech))
