@@ -15,7 +15,7 @@ from collections.abc import Awaitable, Callable
 import aiohttp
 
 from ledgerflow import config
-from ledgerflow.platform import agentlog, fastlane, logs
+from ledgerflow.platform import accounts, agentlog, fastlane, logs
 from ledgerflow.platform import language as lang
 from ledgerflow.platform.connectors import Breaker
 from ledgerflow.platform.grounding import Grounder, extract_numbers
@@ -190,6 +190,12 @@ class TextAgent:
             if not intents:
                 return None
             calls = [{"name": fastlane.INTENTS[i][0], "args": dict(fastlane.INTENTS[i][1])} for i in intents]
+            hint = accounts.hint_from_text(text)          # "my car loan", "card ending 7781"
+            for c in calls:
+                params = REGISTRY.specs[c["name"]].params
+                for key in ("loan_id", "card_id"):
+                    if hint and key in params:
+                        c["args"][key] = hint
             plan = agentlog.planned([c["name"] for c in calls])
             plan["text"] = ("Recognised a direct question: answered straight from the systems, no AI model call"
                             if strict else "AI model unavailable: answered what I could straight from the systems")
@@ -204,7 +210,12 @@ class TextAgent:
                             "card": res.card})
                 await step(agentlog.tool_step(c["name"], res.data, ms))
                 tool_results.append(res.data)
-                parts.append(fastlane.answer(intent, res.data, session.language))
+                part = fastlane.answer(intent, res.data, session.language)
+                label = res.data.get("loan") if session.memory.get("loans_held", 1) > 1 else None
+                label = label or (res.data.get("card") if session.memory.get("cards_held", 1) > 1 else None)
+                if label and res.data.get("ok", True) and not res.data.get("needs_choice"):
+                    part = f"**{label}**: {part}"          # say which account the figures belong to
+                parts.append(part)
             reply = "\n\n".join(p for p in parts if p)
             if not strict:
                 reply = fastlane.OUTAGE_NOTE.get(session.language, fastlane.OUTAGE_NOTE["en"]) + "\n\n" + reply

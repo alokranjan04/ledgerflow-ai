@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.stdout.reconfigure(encoding="utf-8")
 
-from ledgerflow.mocks.personas import PersonaError, demo_customers, load_personas  # noqa: E402
+from ledgerflow.mocks.personas import PersonaError, cards_of, demo_customers, load_personas, loans_of  # noqa: E402
 from ledgerflow.mocks.policies import POLICIES_FILE, PolicyError, load_policies  # noqa: E402
 from ledgerflow.mocks.seed import CUSTOMERS_FILE  # noqa: E402
 
@@ -38,7 +38,6 @@ except PersonaError as e:
     sys.exit(1)
 print(f"OK    {a.customers}: {len(people)} customers, {len(demo_customers(people))} on the sign-in screen")
 for c in people:
-    parts = [f"loan {c['loan']['product']}" if c.get("loan") else "",
-             f"card {c['card'].get('product', 'default')}" if c.get("card") else ""]
+    parts = [f"loan {ln['product']}" for ln in loans_of(c)] + [f"card {cd.get('product', 'default')}" for cd in cards_of(c)]
     print(f"      {c['id']}  {c['name']:<18} {c['phone']}  {' + '.join(p for p in parts if p)}"
           f"{'  [demo]' if c.get('demo') else ''}")

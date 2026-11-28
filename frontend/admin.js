@@ -278,8 +278,8 @@ async function openCustomer(id) {
   const r = await api(`/api/admin/customers/${encodeURIComponent(id)}`);
   if (!r.ok) return toast('Customer not found', true);
   const c = r.body;
-  const loan = c.loan ? `<div class="kv"><span>Loan ${esc(c.loan_id)}</span><b>${esc(c.loan_product)} · ₹${Number(c.loan.principal).toLocaleString('en-IN')} over ${esc(c.loan.tenure)} months</b></div>` : '';
-  const card = c.card ? `<div class="kv"><span>Card ${esc(c.card_id)}</span><b>${esc(c.card_product)} ending ${esc(c.card.last4)} · limit ₹${Number(c.card.credit_limit).toLocaleString('en-IN')}</b></div>` : '';
+  const loan = (c.loans || []).map((l) => `<div class="kv"><span>Loan ${esc(l.id)}</span><b>${esc(l.product_code)} · ₹${Number(l.principal).toLocaleString('en-IN')} over ${esc(l.tenure)} months</b></div>`).join('');
+  const card = (c.cards || []).map((k) => `<div class="kv"><span>Card ${esc(k.id)}</span><b>${esc(k.product)} ending ${esc(k.last4)} · limit ₹${Number(k.credit_limit).toLocaleString('en-IN')}</b></div>`).join('');
   $('#c-detail').innerHTML = `
     <div class="admin-bar"><h2>${esc(c.name)} <span class="muted">${esc(c.id)}</span></h2>
       <span class="pill ${c.status === 'active' ? 'good' : 'bad'}">${esc(c.status)}</span><span class="pill neutral">${esc(c.source)}</span></div>

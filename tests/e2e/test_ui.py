@@ -248,3 +248,16 @@ def test_admin_panel_edits_a_policy_and_manages_a_customer(page, server):
     assert "product.updated" in log and "bounce_charge.amount" in log and "E2E admin" in log
     assert "customer.disabled" in log and "reason: e2e check" in log
     assert not problems, "\n".join(problems)
+
+
+@pytest.mark.req("REQ-ACC-001.5")
+def test_two_loan_customer_sees_both_and_is_asked_which(page):
+    sign_in(page, "Arjun Mehta · 9800000010")
+    panel = page.inner_text("#account-panel").lower()
+    assert "home loan l-10010" in panel and "car loan l-10011" in panel
+    reply = ask(page, "What's my next EMI?")
+    assert "Which one do you mean" in reply
+    buttons = page.locator(".card .choices button")
+    assert buttons.count() == 2 and buttons.nth(1).inner_text() == "Car loan L-10011"
+    reply = ask(page, "When is the next EMI on my car loan?")
+    assert reply.startswith("Car loan L-10011")

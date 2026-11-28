@@ -10,6 +10,7 @@ retries and breakers are real. Splitting them out is a deployment change only.
 from __future__ import annotations
 
 import asyncio
+import copy
 import hmac
 import json
 import math
@@ -53,7 +54,8 @@ class MockSystems:
         if not exists:
             seed(self.conn, as_of, products=self.file_products,
                  personas=load_personas(seed_mod.CUSTOMERS_FILE, self.file_products))
-        self.products = {r["code"]: {"name": r["name"], "kind": r["kind"], "rate_type": r["rate_type"],
+        self.products = copy.deepcopy(self.file_products) if not exists else {
+                         r["code"]: {"name": r["name"], "kind": r["kind"], "rate_type": r["rate_type"],
                                      **({"short_name": r["short_name"]} if r["kind"] == "card" else {}),
                                      "policy": json.loads(r["policy"])}
                          for r in self.conn.execute("SELECT * FROM products").fetchall()}
@@ -115,6 +117,8 @@ class MockSystems:
         prod = self.q("SELECT name, rate_type FROM products WHERE code=?", loan["product_code"])
         loan["rate_type"] = prod[0]["rate_type"] if prod else "fixed"
         loan["product_name"] = prod[0]["name"] if prod else loan["product_code"]
+        short = self.q("SELECT short_name FROM products WHERE code=?", loan["product_code"])
+        loan["product_short_name"] = (short[0]["short_name"] if short else "") or loan["product_name"]
         loan["schedule"] = [r.as_dict() for r in sched.rows]
         loan["as_of"] = self.as_of.isoformat()
         return loan
@@ -172,8 +176,11 @@ def build_mock_app(ms: MockSystems, internal_token: str | None = None) -> web.Ap
     # Loan management -----------------------------------------------------------
     @sys_route("loans")
     async def loans_for_customer(req):
-        return web.json_response(ms.q("SELECT id, product_code, principal, disbursal_date, tenure, status FROM loans "
-                                      "WHERE customer_id=?", req.match_info["cid"]))
+        return web.json_response(ms.q(
+            "SELECT l.id, l.product_code, l.principal, l.disbursal_date, l.tenure, l.status, "
+            "COALESCE(p.short_name, p.name, l.product_code) AS product_short_name, p.name AS product_name "
+            "FROM loans l LEFT JOIN products p ON p.code = l.product_code WHERE l.customer_id=? ORDER BY l.id",
+            req.match_info["cid"]))
 
     @sys_route("loans")
     async def loan_detail(req):
@@ -277,7 +284,9 @@ def build_mock_app(ms: MockSystems, internal_token: str | None = None) -> web.Ap
     # Cards (workflow 2) -------------------------------------------------------------
     @sys_route("cards")
     async def cards_for_customer(req):
-        return web.json_response(ms.q("SELECT * FROM cards WHERE customer_id=?", req.match_info["cid"]))
+        return web.json_response(ms.q(
+            "SELECT k.*, COALESCE(p.short_name, p.name, k.product) AS product_short_name FROM cards k "
+            "LEFT JOIN products p ON p.code = k.product WHERE k.customer_id=? ORDER BY k.id", req.match_info["cid"]))
 
     @sys_route("cards")
     async def card_txns(req):

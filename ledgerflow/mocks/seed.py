@@ -14,7 +14,7 @@ from decimal import Decimal
 
 from ledgerflow.config import ROOT, env
 from ledgerflow.finance.loans import RateChange, add_months, build_schedule, money
-from ledgerflow.mocks.personas import load_personas
+from ledgerflow.mocks.personas import cards_of, load_personas, loans_of
 from ledgerflow.mocks.policies import card_products, load_policies
 
 CUSTOMERS_FILE = ROOT / env("CUSTOMERS_FILE", "data/customers.yaml")
@@ -125,8 +125,7 @@ def seed_persona(conn, c: dict, products: dict, as_of: date, rng: random.Random,
     last_due = _last_due_on_or_before(as_of)
     _customer(conn, c["id"], c["name"], str(c["phone"]), str(c["dob"]), c.get("city", ""), c.get("segment", ""),
               email=c.get("email") or None, demo=bool(c.get("demo")), story=c.get("story", ""), source=source)
-    loan = c.get("loan")
-    if loan:
+    for loan in loans_of(c):
         first_due = add_months(last_due, -(int(loan["emis_paid"]) - 1))
         disb = first_due - timedelta(days=int(loan.get("disbursal_days_before_first_emi", 30)))
         hist = [RateChange(disb, _pct(loan["rate"]),
@@ -140,8 +139,7 @@ def seed_persona(conn, c: dict, products: dict, as_of: date, rng: random.Random,
                  for f in loan.get("failed_payments") or []}
         _loan(conn, loan["id"], c["id"], loan["product"], Decimal(str(loan["principal"])), disb, first_due,
               int(loan["tenure_months"]), hist, as_of, failures=fails, policy=products[loan["product"]]["policy"])
-    card = c.get("card")
-    if card:
+    for card in cards_of(c):
         code = card.get("product") or (card_products(products) or [None])[0]
         _card(conn, rng, card["id"], c["id"], str(card["last4"]), Decimal(str(card["limit"])), as_of,
               duplicate=card.get("duplicate_charge"), product=code, policy=products[code]["policy"])

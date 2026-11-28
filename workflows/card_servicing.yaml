@@ -10,6 +10,7 @@ panels: [card, activity]
 tools:
   - verify_identity
   - search_policy
+  - list_accounts
   - list_service_requests
   - propose_service_request
   - confirm_action

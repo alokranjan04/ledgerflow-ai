@@ -19,6 +19,18 @@ class PersonaError(ValueError):
     pass
 
 
+def loans_of(c: dict) -> list[dict]:
+    """A customer's loans: `loans:` (a list) or the shorthand `loan:` (one)."""
+    return list(c.get("loans") or ([c["loan"]] if c.get("loan") else []))
+
+
+def cards_of(c: dict) -> list[dict]:
+    return list(c.get("cards") or ([c["card"]] if c.get("card") else []))
+
+
+FILE_ID_LIMIT = 1500    # C1001-C1499 for data/customers.yaml; C1500+ are created in the admin panel or by sign-up
+
+
 def load_personas(path: Path, products: dict | None = None) -> list[dict]:
     try:
         raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
@@ -28,6 +40,11 @@ def load_personas(path: Path, products: dict | None = None) -> list[dict]:
     if not isinstance(customers, list) or not customers:
         raise PersonaError(f"{path}: needs a non-empty 'customers:' list")
     errors = validate(customers, products)
+    for c in customers:
+        cid = str(c.get("id", "")) if isinstance(c, dict) else ""
+        if re.fullmatch(r"C1\d{3}", cid) and int(cid[1:]) >= FILE_ID_LIMIT:
+            errors.append(f"customer {cid}: ids C1500-C1999 are kept for customers created in the admin panel "
+                          "or by sign-up; use C1001-C1499 in this file")
     if errors:
         raise PersonaError(f"{path} has {len(errors)} problem(s):\n  - " + "\n  - ".join(errors))
     return customers
@@ -68,10 +85,14 @@ def validate(customers: list[dict], products: dict | None = None) -> list[str]:
             seen[key].add(val)
         if c.get("demo") and not c.get("story"):
             errs.append(f"{who}: demo customers need a one-line 'story' for the sign-in screen")
-        if not c.get("loan") and not c.get("card"):
-            errs.append(f"{who}: needs a 'loan', a 'card' or both")
-        loan = c.get("loan")
-        if loan:
+        if not loans_of(c) and not cards_of(c):
+            errs.append(f"{who}: needs at least one loan or card ('loan'/'loans', 'card'/'cards')")
+        for one, many in (("loan", "loans"), ("card", "cards")):
+            if one in c and many in c:
+                errs.append(f"{who}: use either '{one}' or '{many}', not both")
+            if c.get(many) is not None and not isinstance(c.get(many), list):
+                errs.append(f"{who}: '{many}' must be a list")
+        for loan in loans_of(c) if isinstance(c.get("loans", []), list) else []:
             lw = f"{who} loan"
             if not ID_RE["loan"].match(str(loan.get("id", ""))):
                 errs.append(f"{lw}: id must look like L-12345")
@@ -100,8 +121,7 @@ def validate(customers: list[dict], products: dict | None = None) -> list[str]:
                     errs.append(f"{lw}: failed payment reason must be one of {sorted(FAILURE_REASONS)}")
                 if not _num(f.get("emis_ago")) or (_num(loan.get("emis_paid")) and f["emis_ago"] >= loan["emis_paid"]):
                     errs.append(f"{lw}: failed payment emis_ago must be 0 .. emis_paid-1")
-        card = c.get("card")
-        if card:
+        for card in cards_of(c) if isinstance(c.get("cards", []), list) else []:
             cw = f"{who} card"
             if not ID_RE["card"].match(str(card.get("id", ""))):
                 errs.append(f"{cw}: id must look like CARD-1234")

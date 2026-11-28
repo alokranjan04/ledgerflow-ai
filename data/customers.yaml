@@ -104,3 +104,42 @@ customers:
       last4: "9021"
       limit: 150000
       duplicate_charge: {merchant: Croma Electronics, amount: 18499.00}
+
+  - id: C1010
+    name: Arjun Mehta
+    phone: "9800000010"
+    dob: "1985-06-20"
+    city: Bengaluru
+    segment: salaried
+    demo: true
+    story: "Home loan + car loan and two cards: the assistant asks which account you mean"
+    loans:
+      - id: L-10010
+        product: HL-FLOAT
+        principal: 4500000
+        tenure_months: 240
+        emis_paid: 30
+        rate: 8.75
+        rate_reason: "Sanction rate: repo 6.50% + spread 2.25%"
+        rate_resets:
+          - {months_ago: 4, rate: 9.00, reason: "Quarterly repo-linked reset after the RBI repo rate increase of 0.25%"}
+      - id: L-10011
+        product: AL-FIX
+        principal: 900000
+        tenure_months: 60
+        emis_paid: 14
+        rate: 9.50
+        failed_payments:
+          - {emis_ago: 1, reason: MANDATE_CANCELLED, retry_days: 4}
+    cards:
+      - id: CARD-5010
+        product: CC-PLAT
+        last4: "2290"
+        limit: 300000
+      - id: CARD-5011
+        product: CC-REW
+        last4: "7781"
+        limit: 150000
+        duplicate_charge: {merchant: Flipkart, amount: 12999.00}
+    interactions:
+      - {days_ago: 20, channel: app, summary: "Asked which loan the auto-debit failure was on"}

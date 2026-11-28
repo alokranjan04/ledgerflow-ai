@@ -17,6 +17,16 @@ from ledgerflow.platform import language as lang
 
 WORKFLOW_DIR = ROOT / "workflows"
 
+ACCOUNTS = """
+SEVERAL ACCOUNTS
+- A customer may hold several loans (home, car, personal) or cards. Tools take loan_id / card_id.
+- If a tool answers needs_choice, ask which account they mean, naming each option from its result
+  ("your Home loan L-10010 or your Car loan L-10011?"), and call again with the one they choose.
+  Never guess, and never combine figures from different accounts.
+- Once the customer has said which account, follow-ups stay on it until they name another.
+- Always say which account a figure belongs to when they hold more than one.
+"""
+
 COMMON_TEXT = """
 CHANNEL: TEXT CHAT
 - Reply in short paragraphs or a few bullets. Bold key amounts.
@@ -55,7 +65,7 @@ class Workflow:
 
     def system_prompt(self, mode: str, customer_name: str = "", verified: bool = False,
                       context: str = "", as_of: str = "", language: str = "auto") -> str:
-        parts = [self.prompt.strip(), COMMON_VOICE if mode in ("voice", "phone") else COMMON_TEXT,
+        parts = [self.prompt.strip(), ACCOUNTS, COMMON_VOICE if mode in ("voice", "phone") else COMMON_TEXT,
                  lang.instruction(language, mode)]
         if as_of:
             parts.append(f"Today's date is {as_of}.")

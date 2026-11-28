@@ -219,3 +219,4 @@ ul.changes { margin: 0; padding-left: 18px; font-family: ui-monospace, Consolas,
 .login-card .check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; }
 .switch-link { margin-top: 14px; text-align: center; }
 .switch-link button { background: none; border: 0; color: var(--brand-2); font-weight: 600; padding: 0; }
+.choices { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }

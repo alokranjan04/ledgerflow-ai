@@ -22,6 +22,7 @@ import time
 from collections import deque
 from datetime import date
 
+from ledgerflow.mocks.personas import cards_of, loans_of
 from ledgerflow.mocks.personas import validate as validate_personas
 from ledgerflow.mocks.policies import FORECLOSURE, REQUIRED, RULES
 from ledgerflow.mocks.policies import validate as validate_policies
@@ -204,9 +205,11 @@ class AdminService:
             where.append("(c.id = ? OR c.name LIKE ? OR c.phone LIKE ?)")
             args += [q.upper(), f"%{q}%", f"%{q}%"]
         sql = ("SELECT c.id, c.name, c.phone, c.dob, c.city, c.segment, c.email, c.status, c.demo, c.story, c.source, "
-               "l.id AS loan_id, l.product_code AS loan_product, k.id AS card_id, k.product AS card_product "
-               "FROM customers c LEFT JOIN loans l ON l.customer_id = c.id LEFT JOIN cards k ON k.customer_id = c.id"
-               + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY c.id LIMIT ?")
+               "(SELECT GROUP_CONCAT(id, ', ') FROM loans WHERE customer_id = c.id) AS loan_id, "
+               "(SELECT GROUP_CONCAT(product_code, ', ') FROM loans WHERE customer_id = c.id) AS loan_product, "
+               "(SELECT GROUP_CONCAT(id, ', ') FROM cards WHERE customer_id = c.id) AS card_id, "
+               "(SELECT GROUP_CONCAT(product, ', ') FROM cards WHERE customer_id = c.id) AS card_product "
+               "FROM customers c" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY c.id LIMIT ?")
         rows = self.ms.q(sql, *args, max(1, min(int(limit or 50), 200)))
         for r in rows:
             r["demo"] = bool(r["demo"])
@@ -218,19 +221,22 @@ class AdminService:
         if not rows:
             return None
         c = rows[0]
-        if c["loan_id"]:
-            loan = self.ms.q("SELECT principal, tenure, disbursal_date, first_due FROM loans WHERE id=?", c["loan_id"])[0]
-            c["loan"] = loan
-        if c["card_id"]:
-            c["card"] = self.ms.q("SELECT last4, credit_limit, statement_balance, min_due, due_date FROM cards WHERE id=?",
-                                  c["card_id"])[0]
+        c["loans"] = self.ms.q("SELECT id, product_code, principal, tenure, disbursal_date, first_due FROM loans "
+                               "WHERE customer_id=? ORDER BY id", cid)
+        c["cards"] = self.ms.q("SELECT id, product, last4, credit_limit, statement_balance, min_due, due_date FROM cards "
+                               "WHERE customer_id=? ORDER BY id", cid)
+        if c["loans"]:
+            c["loan"] = c["loans"][0]
+        if c["cards"]:
+            c["card"] = c["cards"][0]
         c["open_requests"] = self.ms.q("SELECT COUNT(*) n FROM tickets WHERE customer_id=? AND status!='resolved'",
                                        cid)[0]["n"]
         c["record"] = self.records.get(cid)
         return c
 
-    def _next_id(self, table: str, col: str, prefix: str, lo: int, hi: int, width: int) -> str:
+    def _next_id(self, table: str, col: str, prefix: str, lo: int, hi: int, width: int, extra=()) -> str:
         used = {r[col] for r in self.ms.q(f"SELECT {col} FROM {table} WHERE {col} LIKE ?", f"{prefix}%")}  # noqa: S608
+        used |= set(extra)
         for n in range(lo, hi + 1):
             cand = f"{prefix}{n:0{width}d}"
             if cand not in used:
@@ -269,12 +275,19 @@ class AdminService:
     def prepare_persona(self, persona: dict) -> dict:
         """Fill in IDs and generated details for a new customer."""
         p = copy.deepcopy(persona)
-        p["id"] = p.get("id") or self._next_id("customers", "id", "C1", 1, 999, 3)
-        if p.get("loan"):
-            p["loan"].setdefault("id", self._next_id("loans", "id", "L-1", 1, 9999, 4))
-        if p.get("card"):
-            p["card"].setdefault("id", self._next_id("cards", "id", "CARD-5", 1, 999, 3))
-            p["card"].setdefault("last4", f"{self.rng.randint(1000, 9999)}")
+        # C1500+ / L-15000+ / CARD-5500+ are kept for customers created here, so a later edit of
+        # data/customers.yaml (C1001-C1499) can never collide with one.
+        p["id"] = p.get("id") or self._next_id("customers", "id", "C1", 500, 999, 3)
+        taken_loans, taken_cards = set(), set()
+        for ln in loans_of(p):
+            if not ln.get("id"):
+                ln["id"] = self._next_id("loans", "id", "L-1", 5000, 9999, 4, extra=taken_loans)
+            taken_loans.add(ln["id"])
+        for cd in cards_of(p):
+            if not cd.get("id"):
+                cd["id"] = self._next_id("cards", "id", "CARD-5", 500, 999, 3, extra=taken_cards)
+            taken_cards.add(cd["id"])
+            cd.setdefault("last4", f"{self.rng.randint(1000, 9999)}")
         return p
 
     def check_customer(self, persona: dict, check_phone: bool = True) -> list[str]:
@@ -286,10 +299,12 @@ class AdminService:
         errs += [e for e in self._profile_errors(prof, None) if e not in errs]
         if self.ms.q("SELECT 1 FROM customers WHERE id=?", p.get("id", "")):
             errs.append(f"id: {p['id']} already exists")
-        if p.get("loan") and self.ms.q("SELECT 1 FROM loans WHERE id=?", p["loan"].get("id", "")):
-            errs.append(f"loan id: {p['loan']['id']} already exists")
-        if p.get("card") and self.ms.q("SELECT 1 FROM cards WHERE id=?", p["card"].get("id", "")):
-            errs.append(f"card id: {p['card']['id']} already exists")
+        for ln in loans_of(p):
+            if self.ms.q("SELECT 1 FROM loans WHERE id=?", ln.get("id", "")):
+                errs.append(f"loan id: {ln['id']} already exists")
+        for cd in cards_of(p):
+            if self.ms.q("SELECT 1 FROM cards WHERE id=?", cd.get("id", "")):
+                errs.append(f"card id: {cd['id']} already exists")
         return errs
 
     async def create_customer(self, persona: dict, actor: str = "admin", source: str = "admin",
@@ -310,8 +325,8 @@ class AdminService:
         self.records[p["id"]] = rec
         await self.ms.durable.put("customers", p["id"], rec)
         what = [f"{k}: {p[k]}" for k in ("name", "city") if p.get(k)] + \
-               ([f"loan {p['loan']['id']} {p['loan']['product']}"] if p.get("loan") else []) + \
-               ([f"card {p['card']['id']} {p['card'].get('product', '')}".strip()] if p.get("card") else [])
+               [f"loan {ln['id']} {ln['product']}" for ln in loans_of(p)] + \
+               [f"card {cd['id']} {cd.get('product', '')}".strip() for cd in cards_of(p)]
         self._audit(actor, f"customer.created ({source})", p["id"], what)
         return {"ok": True, "customer": self.get_customer(p["id"])}
 
@@ -389,7 +404,13 @@ class AdminService:
             counts["products"] += 1
         for rec in sorted(await durable.all("customers"), key=lambda r: r.get("id", "")):
             cid = rec.get("id")
-            if rec.get("persona") and not self.ms.q("SELECT 1 FROM customers WHERE id=?", cid):
+            existing = self.ms.q("SELECT source FROM customers WHERE id=?", cid)
+            if rec.get("persona") and existing and existing[0]["source"] == "file":
+                # an ID created here was later also used in data/customers.yaml: keep the file's customer untouched
+                counts["skipped"] += 1
+                logs.event(_log, "admin customer conflicts with customers.yaml", level=40, customer=cid)
+                continue
+            if rec.get("persona") and not existing:
                 errs = self.check_customer(rec["persona"])
                 if errs:
                     counts["skipped"] += 1

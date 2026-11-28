@@ -107,8 +107,21 @@ def _t(lang: str, en: str, hi: str, hil: str) -> str:
     return {"hi": hi, "hi-Latn": hil}.get(lang, en)
 
 
+def choose(d: dict, lang: str) -> str:
+    """Several accounts fit and the customer did not say which: ask, naming each (no guessing)."""
+    names = [o["label"] for o in d["options"]]
+    listed = ", ".join(names[:-1]) + _t(lang, " or ", " या ", " ya ") + names[-1] if len(names) > 1 else names[0]
+    kind = d.get("account_type", "account")
+    kind_hi = {"loan": "लोन", "card": "कार्ड"}.get(kind, "अकाउंट")
+    return _t(lang, f"You have {len(names)} {kind}s with us. Which one do you mean: {listed}?",
+              f"आपके हमारे साथ {len(names)} {kind_hi} हैं। आप किसके बारे में पूछ रहे हैं: {listed}?",
+              f"Aapke humare saath {len(names)} {kind}s hain. Aap kis ke baare mein pooch rahe hain: {listed}?")
+
+
 def answer(intent: str, d: dict, lang: str) -> str:
     """One grounded answer from one tool result. Every figure is copied from `d`."""
+    if d.get("needs_choice"):
+        return choose(d, lang)
     if not d.get("ok", True):
         if d.get("unavailable"):
             return _t(lang, f"I couldn't reach the {d['unavailable']} system just now, so I can't answer that "

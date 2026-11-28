@@ -206,9 +206,10 @@ async function loadAccount() {
   const wf = state.cfg.workflows.find((w) => w.id === state.session.workflow);
   const panels = wf?.panels || [];
   let html = '';
-  if (a.loan && panels.includes('loan')) {
-    const l = a.loan;
-    html += `<div class="panel"><div class="panel-title">Personal loan · ${esc(l.loan_id)}</div>
+  const loans = a.loans || (a.loan ? [a.loan] : []);
+  const cards = a.cards || (a.card ? [a.card] : []);
+  for (const l of panels.includes('loan') ? loans : []) {
+    html += `<div class="panel"><div class="panel-title">${esc(l.loan || ('Loan · ' + l.loan_id))}</div>
       <div class="hero-label">Outstanding principal</div><div class="hero-num">${esc(l.outstanding_principal)}</div>
       <dl class="kv" style="margin-top:10px">
         <dt>Next EMI</dt><dd>${esc(l.next_due_amount)}</dd><dt>Due on</dt><dd>${fmtDate(l.next_due_date)}</dd>
@@ -216,8 +217,7 @@ async function loadAccount() {
         <dt>EMIs paid</dt><dd>${l.emis_paid} of ${l.tenure_months}</dd><dt>Sanctioned</dt><dd>${esc(l.sanctioned_amount)}</dd>
       </dl></div>`;
   }
-  if (a.card && panels.includes('card')) {
-    const c = a.card;
+  for (const c of panels.includes('card') ? cards : []) {
     html += `<div class="panel"><div class="panel-title">${esc(c.card)}</div>
       <div class="hero-label">Statement balance</div><div class="hero-num">${esc(c.statement_balance)}</div>
       <dl class="kv" style="margin-top:10px">
@@ -294,7 +294,7 @@ function renderCard(card) {
   const d = card.data || {}; let h = '';
   switch (card.type) {
     case 'loan_summary':
-      h = `<h4>Loan ${esc(d.loan_id)}</h4><dl class="kv"><dt>Outstanding principal</dt><dd>${esc(d.outstanding_principal)}</dd>
+      h = `<h4>${esc(d.loan || ('Loan ' + d.loan_id))}</h4><dl class="kv"><dt>Outstanding principal</dt><dd>${esc(d.outstanding_principal)}</dd>
         <dt>Current EMI</dt><dd>${esc(d.current_emi)}</dd><dt>Next due</dt><dd>${esc(d.next_due_amount)} on ${fmtDate(d.next_due_date)}</dd>
         <dt>Rate</dt><dd>${esc(d.current_interest_rate_pct)}% ${esc(d.rate_type)}</dd><dt>EMIs left</dt><dd>${d.emis_remaining}</dd></dl>`; break;
     case 'emi_change':
@@ -367,6 +367,12 @@ function renderCard(card) {
       break;
     case 'action_cancelled':
       h = `<h4>Request cancelled</h4>`; break;
+    case 'choose_account':
+      h = `<h4>Which ${esc(d.account_type)}?</h4><div class="choices">${d.options.map((o) =>
+        `<button class="btn small" data-say="${esc(o.label)}">${esc(o.label)}</button>`).join('')}</div>`; break;
+    case 'accounts':
+      h = `<h4>Your accounts</h4><table>${[...d.loans.map((l) => `<tr><td>${esc(l.loan)}</td><td>${esc(l.status)}</td></tr>`),
+        ...d.cards.map((c) => `<tr><td>${esc(c.card)}</td><td>card</td></tr>`)].join('')}</table>`; break;
     case 'requests':
       h = `<h4>Service requests</h4>${(d || []).length ? `<table>${d.map((r) => `<tr><td>${esc(r.id)}</td><td>${esc(r.type)}</td><td>${esc(r.status)}</td><td>${fmtDate(r.created)}</td></tr>`).join('')}</table>` : '<p class="muted">None.</p>'}`; break;
     default: return;

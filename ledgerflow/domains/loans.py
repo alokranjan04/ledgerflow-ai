@@ -9,17 +9,33 @@ from datetime import date
 from decimal import Decimal
 
 from ledgerflow.finance.loans import accrued_interest, add_months, charge_with_gst, inr, money, simulate_prepayment
+from ledgerflow.platform.accounts import pick
 from ledgerflow.platform.common_tools import create_ticket, proposal
 from ledgerflow.platform.tools import REGISTRY, ToolContext, ToolResult
 
+LOAN_ID = {"loan_id": {"type": "string", "description": (
+    "Which loan, when the customer has more than one: its ID (L-10011) or the type the customer said "
+    "('home', 'car', 'personal'). Omit when they have one loan or already said which.")}}
+
 
 # ---------------------------------------------------------------- data access
-async def _loan(ctx: ToolContext) -> dict:
+def _label(ln: dict) -> str:
+    return f"{ln.get('product_short_name') or ln['product_code']} {ln['id']}"
+
+
+async def _loan_ref(ctx: ToolContext, loan_id: str = "") -> dict:
+    """The customer's active loan this question is about (see platform/accounts.py)."""
     loans = await ctx.connectors["loans"].get(f"/customers/{ctx.customer_id}/loans", trace=ctx.trace)
-    active = [ln for ln in loans if ln["status"] == "active"]
-    if not active:
-        raise ValueError("The customer has no active loan.")
-    return await ctx.connectors["loans"].get(f"/loans/{active[0]['id']}", trace=ctx.trace)
+    active = [{**ln, "label": _label(ln)} for ln in loans if ln["status"] == "active"]
+    ctx.session.memory["loans_held"] = len(active)
+    return pick(ctx.session.memory, "loan", active, loan_id)
+
+
+async def _loan(ctx: ToolContext, loan_id: str = "") -> dict:
+    ref = await _loan_ref(ctx, loan_id)
+    loan = await ctx.connectors["loans"].get(f"/loans/{ref['id']}", trace=ctx.trace)
+    loan["label"] = ref["label"]
+    return loan
 
 
 async def _policy(ctx: ToolContext, product: str) -> dict:
@@ -50,13 +66,13 @@ def _fy_start(d: date) -> date:
 # ---------------------------------------------------------------- read tools
 @REGISTRY.tool("get_loan_summary",
                "Current loan position: outstanding principal, interest rate, current EMI, EMIs paid and left, "
-               "next due date and amount.")
-async def get_loan_summary(ctx: ToolContext) -> ToolResult:
-    loan = await _loan(ctx)
+               "next due date and amount.", params=LOAN_ID)
+async def get_loan_summary(ctx: ToolContext, loan_id: str = "") -> ToolResult:
+    loan = await _loan(ctx, loan_id)
     pos = _position(loan, ctx.as_of)
     nxt = pos["upcoming"][0] if pos["upcoming"] else None
     data = {
-        "ok": True, "loan_id": loan["id"], "product": loan["product_code"],
+        "ok": True, "loan_id": loan["id"], "loan": loan["label"], "product": loan["product_code"],
         "rate_type": loan["rate_type"], "product_name": loan["product_name"],
         "sanctioned_amount": inr(loan["principal"]), "disbursal_date": loan["disbursal_date"],
         "tenure_months": loan["tenure"], "emis_paid": pos["emis_paid"], "emis_remaining": pos["remaining"],
@@ -69,9 +85,9 @@ async def get_loan_summary(ctx: ToolContext) -> ToolResult:
 
 @REGISTRY.tool("explain_emi_change",
                "Explain why the EMI changed: compares previous and current EMI, the interest-rate resets behind it, "
-               "their dates and reasons, and the policy clause.")
-async def explain_emi_change(ctx: ToolContext) -> ToolResult:
-    loan = await _loan(ctx)
+               "their dates and reasons, and the policy clause.", params=LOAN_ID)
+async def explain_emi_change(ctx: ToolContext, loan_id: str = "") -> ToolResult:
+    loan = await _loan(ctx, loan_id)
     policy = await _policy(ctx, loan["product_code"])
     rows = loan["schedule"]
     pos = _position(loan, ctx.as_of)
@@ -87,14 +103,15 @@ async def explain_emi_change(ctx: ToolContext) -> ToolResult:
     rule = policy["rules"].get("rate_reset")
     clause_id = rule["clause"] if rule else None
     if not change:
-        data = {"ok": True, "emi_changed": False, "current_emi": inr(pos["current_emi"]), "rate_history": resets,
+        data = {"ok": True, "loan": loan["label"], "emi_changed": False, "current_emi": inr(pos["current_emi"]),
+                "rate_history": resets,
                 "explanation": "The EMI has not changed; the loan is on a fixed EMI." if loan["rate_type"] != "floating"
                 else "No EMI change in the schedule so far."}
         return ToolResult(data, card={"type": "emi_change", "data": data})
     before, after = change
     old_rate, new_rate = Decimal(before["rate_pct"]), Decimal(after["rate_pct"])
     data = {
-        "ok": True, "emi_changed": True,
+        "ok": True, "loan": loan["label"], "emi_changed": True,
         "previous_emi": inr(before["emi"]), "previous_emi_due_date": before["due_date"],
         "new_emi": inr(after["emi"]), "new_emi_first_due_date": after["due_date"],
         "emi_difference": inr(Decimal(after["emi"]) - Decimal(before["emi"])),
@@ -115,12 +132,10 @@ async def explain_emi_change(ctx: ToolContext) -> ToolResult:
                "Payment history for the loan, with failed debits, their reasons and charges. Use status='failed' "
                "for failed payments.",
                params={"months": {"type": "integer", "description": "How many months back (default 6)"},
-                       "status": {"type": "string", "enum": ["all", "failed"], "description": "Filter"}})
-async def get_payments(ctx: ToolContext, months: int = 6, status: str = "all") -> ToolResult:
-    loans = await ctx.connectors["loans"].get(f"/customers/{ctx.customer_id}/loans", trace=ctx.trace)
-    if not loans:
-        raise ValueError("The customer has no loan.")
-    loan_id = loans[0]["id"]
+                       "status": {"type": "string", "enum": ["all", "failed"], "description": "Filter"}, **LOAN_ID})
+async def get_payments(ctx: ToolContext, months: int = 6, status: str = "all", loan_id: str = "") -> ToolResult:
+    ref = await _loan_ref(ctx, loan_id)
+    loan_id = ref["id"]
     months = max(1, min(int(months or 6), 24))
     since = add_months(ctx.as_of, -months)
     pays = await _payments(ctx, loan_id, since)
@@ -134,7 +149,7 @@ async def get_payments(ctx: ToolContext, months: int = 6, status: str = "all") -
              for p in pays]
     failed = [i for i in items if i["status"] == "failed"]
     ctx.session.memory["last_payments"] = [i["payment_id"] for i in items]
-    data = {"ok": True, "loan_id": loan_id, "window_months": months, "from_date": since.isoformat(),
+    data = {"ok": True, "loan_id": loan_id, "loan": ref["label"], "window_months": months, "from_date": since.isoformat(),
             "count": len(items), "failed_count": len(failed),
             "total_bounce_charges_incl_gst": inr(sum(Decimal(p["charge"]) + Decimal(p["charge_gst"])
                                                      for p in pays if p["status"] == "failed")),
@@ -143,14 +158,15 @@ async def get_payments(ctx: ToolContext, months: int = 6, status: str = "all") -
     return ToolResult(data, card={"type": "payments", "data": data})
 
 
-@REGISTRY.tool("get_last_payment", "The most recent payment attempt on the loan and whether it succeeded.")
-async def get_last_payment(ctx: ToolContext) -> ToolResult:
-    loans = await ctx.connectors["loans"].get(f"/customers/{ctx.customer_id}/loans", trace=ctx.trace)
-    pays = await _payments(ctx, loans[0]["id"], add_months(ctx.as_of, -3))
+@REGISTRY.tool("get_last_payment", "The most recent payment attempt on the loan and whether it succeeded.",
+               params=LOAN_ID)
+async def get_last_payment(ctx: ToolContext, loan_id: str = "") -> ToolResult:
+    ref = await _loan_ref(ctx, loan_id)
+    pays = await _payments(ctx, ref["id"], add_months(ctx.as_of, -3))
     if not pays:
-        return ToolResult({"ok": True, "last_payment": None})
+        return ToolResult({"ok": True, "loan": ref["label"], "last_payment": None})
     p = pays[0]
-    data = {"ok": True, "payment_id": p["id"], "instalment_no": p["instalment_no"], "due_date": p["due_date"],
+    data = {"ok": True, "loan": ref["label"], "payment_id": p["id"], "instalment_no": p["instalment_no"], "due_date": p["due_date"],
             "paid_on": p["attempt_date"], "amount": inr(p["amount"]), "status": p["status"], "mode": p["mode"]}
     return ToolResult(data, card={"type": "last_payment", "data": data})
 
@@ -174,17 +190,17 @@ def _prepay_rules(loan: dict, policy: dict, pos: dict, amount: Decimal, as_of: d
 @REGISTRY.tool("simulate_prepayment",
                "What-if for a part-prepayment today: checks eligibility under the product rules and compares "
                "'reduce tenure' (same EMI) with 'reduce EMI' (same tenure): interest saved, new tenure, new EMI, charges.",
-               params={"amount": {"type": "number", "description": "Prepayment amount in rupees"}},
+               params={"amount": {"type": "number", "description": "Prepayment amount in rupees"}, **LOAN_ID},
                required=["amount"], side_effect="calc")
-async def tool_simulate_prepayment(ctx: ToolContext, amount: float) -> ToolResult:
+async def tool_simulate_prepayment(ctx: ToolContext, amount: float, loan_id: str = "") -> ToolResult:
     amount = money(Decimal(str(amount)))
-    loan = await _loan(ctx)
+    loan = await _loan(ctx, loan_id)
     policy = await _policy(ctx, loan["product_code"])
     pos = _position(loan, ctx.as_of)
     rules = _prepay_rules(loan, policy, pos, amount, ctx.as_of, Decimal(0))
     out = simulate_prepayment(pos["outstanding"], pos["current_rate"], pos["current_emi"], pos["remaining"], amount)
     data = {
-        "ok": True, "prepayment_amount": inr(amount), "eligible": rules["eligible"],
+        "ok": True, "loan": loan["label"], "prepayment_amount": inr(amount), "eligible": rules["eligible"],
         "ineligible_reasons": rules["reasons"], "clause": rules["clause"], "clause_text": rules["clause_text"],
         "prepayment_charge": inr(rules["charge"]), "gst_on_charge": inr(rules["gst"]),
         "outstanding_principal_now": inr(pos["outstanding"]), "interest_rate_pct": str(pos["current_rate"]),
@@ -204,10 +220,11 @@ async def tool_simulate_prepayment(ctx: ToolContext, amount: float) -> ToolResul
 
 @REGISTRY.tool("check_foreclosure",
                "Foreclosure (full early closure) eligibility, charges under the product rules, and a payoff quote.",
-               params={"on_date": {"type": "string", "description": "Payoff date YYYY-MM-DD; omit for today"}},
+               params={"on_date": {"type": "string", "description": "Payoff date YYYY-MM-DD; omit for today"},
+                       **LOAN_ID},
                side_effect="calc")
-async def check_foreclosure(ctx: ToolContext, on_date: str = "") -> ToolResult:
-    loan = await _loan(ctx)
+async def check_foreclosure(ctx: ToolContext, on_date: str = "", loan_id: str = "") -> ToolResult:
+    loan = await _loan(ctx, loan_id)
     policy = await _policy(ctx, loan["product_code"])
     when = date.fromisoformat(on_date) if on_date else ctx.as_of
     if when < ctx.as_of:
@@ -232,7 +249,7 @@ async def check_foreclosure(ctx: ToolContext, on_date: str = "") -> ToolResult:
     accrued = accrued_interest(pos["outstanding"], pos["current_rate"], last_due, when)
     charge, gst = charge_with_gst(pos["outstanding"], charge_pct)
     payoff = money(pos["outstanding"] + accrued + charge + gst)
-    data = {"ok": True, "eligible": eligible, "ineligible_reasons": reasons,
+    data = {"ok": True, "loan": loan["label"], "eligible": eligible, "ineligible_reasons": reasons,
             "penalty_free": eligible and charge_pct == 0, "quote_date": when.isoformat(),
             "outstanding_principal": inr(pos["outstanding"]), "accrued_interest": inr(accrued),
             "accrued_since": last_due.isoformat(), "foreclosure_charge_pct": str(charge_pct),
@@ -251,9 +268,9 @@ async def check_foreclosure(ctx: ToolContext, on_date: str = "") -> ToolResult:
 
 @REGISTRY.tool("get_servicing_options",
                "Overview of what the customer can do with their loan right now: part-prepayment, foreclosure, EMI "
-               "date change, open charges to dispute. Use for 'what are my options' questions.")
-async def get_servicing_options(ctx: ToolContext) -> ToolResult:
-    loan = await _loan(ctx)
+               "date change, open charges to dispute. Use for 'what are my options' questions.", params=LOAN_ID)
+async def get_servicing_options(ctx: ToolContext, loan_id: str = "") -> ToolResult:
+    loan = await _loan(ctx, loan_id)
     since = add_months(ctx.as_of, -6)
     policy_t = asyncio.create_task(_policy(ctx, loan["product_code"]))
     pays_t = asyncio.create_task(_payments(ctx, loan["id"], since))
@@ -295,7 +312,7 @@ async def get_servicing_options(ctx: ToolContext) -> ToolResult:
                             "detail": f"{len(charged)} failed debit(s) in 6 months carried bounce charges totalling "
                                       f"{inr(sum(Decimal(p['charge']) + Decimal(p['charge_gst']) for p in charged))}.",
                             "payment_ids": [p["id"] for p in charged]})
-    data = {"ok": True, "loan_id": loan["id"], "outstanding_principal": inr(pos["outstanding"]),
+    data = {"ok": True, "loan_id": loan["id"], "loan": loan["label"], "outstanding_principal": inr(pos["outstanding"]),
             "current_emi": inr(pos["current_emi"]), "interest_rate_pct": str(pos["current_rate"]),
             "emis_paid": pos["emis_paid"], "emis_remaining": pos["remaining"], "options": options,
             "unavailable_systems": unavailable}
@@ -311,9 +328,11 @@ async def get_servicing_options(ctx: ToolContext) -> ToolResult:
                        "reason": {"type": "string", "description": "Why the customer disputes it, in their words"}},
                required=["payment_id", "reason"], side_effect="write")
 async def propose_payment_dispute(ctx: ToolContext, payment_id: str, reason: str) -> ToolResult:
+    pid = payment_id.strip().upper()
     loans = await ctx.connectors["loans"].get(f"/customers/{ctx.customer_id}/loans", trace=ctx.trace)
-    pays = await _payments(ctx, loans[0]["id"])
-    p = next((x for x in pays if x["id"] == payment_id.strip().upper()), None)
+    owner = next((ln for ln in loans if pid.startswith(f"P-{ln['id'][2:]}-")), None)   # IDs carry the loan
+    pays = await _payments(ctx, owner["id"]) if owner else []
+    p = next((x for x in pays if x["id"] == pid), None)
     if p is None:  # scoped: a payment of another customer is simply "not found"
         return ToolResult({"ok": False, "error": "No such payment on this customer's loan. List payments first."})
     if p["status"] != "failed":
@@ -329,10 +348,10 @@ async def propose_payment_dispute(ctx: ToolContext, payment_id: str, reason: str
 
 @REGISTRY.tool("propose_foreclosure_statement",
                "Prepare a request for an official foreclosure statement sent to the registered email (does NOT submit).",
-               side_effect="write")
-async def propose_foreclosure_statement(ctx: ToolContext) -> ToolResult:
-    loan = await _loan(ctx)
-    summary = f"Send the official foreclosure statement for loan {loan['id']} to the registered email address."
+               params=LOAN_ID, side_effect="write")
+async def propose_foreclosure_statement(ctx: ToolContext, loan_id: str = "") -> ToolResult:
+    loan = await _loan(ctx, loan_id)
+    summary = f"Send the official foreclosure statement for your {loan['label']} to the registered email address."
     return proposal(ctx, "foreclosure_statement", {"loan_id": loan["id"]}, summary)
 
 
@@ -341,18 +360,19 @@ async def propose_foreclosure_statement(ctx: ToolContext) -> ToolResult:
                "customer's chosen option.",
                params={"amount": {"type": "number", "description": "Amount in rupees"},
                        "option": {"type": "string", "enum": ["reduce_tenure", "reduce_emi"],
-                                  "description": "Keep EMI and shorten tenure, or keep tenure and lower EMI"}},
+                                  "description": "Keep EMI and shorten tenure, or keep tenure and lower EMI"},
+                       **LOAN_ID},
                required=["amount", "option"], side_effect="write")
-async def propose_prepayment_request(ctx: ToolContext, amount: float, option: str) -> ToolResult:
+async def propose_prepayment_request(ctx: ToolContext, amount: float, option: str, loan_id: str = "") -> ToolResult:
     amount = money(Decimal(str(amount)))
-    loan = await _loan(ctx)
+    loan = await _loan(ctx, loan_id)
     policy = await _policy(ctx, loan["product_code"])
     pos = _position(loan, ctx.as_of)
     rules = _prepay_rules(loan, policy, pos, amount, ctx.as_of, Decimal(0))
     if not rules["eligible"]:
         return ToolResult({"ok": False, "eligible": False, "reasons": rules["reasons"], "clause": rules["clause"]})
     label = "reduce the tenure (same EMI)" if option == "reduce_tenure" else "reduce the EMI (same tenure)"
-    summary = (f"Part-prepay {inr(amount)} on loan {loan['id']} and {label}. Charge {inr(rules['charge'] + rules['gst'])} "
+    summary = (f"Part-prepay {inr(amount)} on your {loan['label']} and {label}. Charge {inr(rules['charge'] + rules['gst'])} "
                f"incl. GST. A payment link will be sent to the registered mobile.")
     return proposal(ctx, "prepayment_request", {"loan_id": loan["id"], "amount": str(amount), "option": option},
                     summary, {"amount": inr(amount), "option": option})

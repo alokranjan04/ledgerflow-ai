@@ -172,8 +172,10 @@ def validate(products: dict) -> tuple[list[str], dict]:
                     errs.append(f"{rw}: {f} {problem}")
                 norm[f] = v
             norm_rules[name] = norm
+        if "short_name" in p and not str(p.get("short_name") or "").strip():
+            errs.append(f"{who}: short_name, when given, must not be empty")
         out[code] = {"name": p.get("name"), "kind": kind, "rate_type": rate_type,
-                     **({"short_name": p["short_name"]} if kind == "card" and p.get("short_name") else {}),
+                     **({"short_name": p["short_name"]} if p.get("short_name") else {}),
                      "policy": {"version": str(pol.get("version", "")), "effective": eff,
                                 "rules": norm_rules, "clauses": clauses}}
     if not any(p.get("kind") == "loan" for p in products.values() if isinstance(p, dict)):

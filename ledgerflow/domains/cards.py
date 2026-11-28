@@ -7,15 +7,21 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from ledgerflow.finance.loans import inr
+from ledgerflow.platform.accounts import pick
 from ledgerflow.platform.common_tools import create_ticket, proposal
 from ledgerflow.platform.tools import REGISTRY, ToolContext, ToolResult
 
+CARD_ID = {"card_id": {"type": "string", "description": (
+    "Which card, when the customer has more than one: its ID (CARD-5011), its last four digits, or the card "
+    "name they said ('platinum', 'rewards'). Omit when they have one card or already said which.")}}
 
-async def _card(ctx: ToolContext) -> dict:
+
+async def _card(ctx: ToolContext, card_id: str = "") -> dict:
+    """The customer's card this question is about (see platform/accounts.py)."""
     cards = await ctx.connectors["cards"].get(f"/customers/{ctx.customer_id}/cards", trace=ctx.trace)
-    if not cards:
-        raise ValueError("The customer has no credit card with us.")
-    return cards[0]
+    labelled = [{**c, "label": f"{c.get('product_short_name') or c['product']} ending {c['last4']}"} for c in cards]
+    ctx.session.memory["cards_held"] = len(labelled)
+    return pick(ctx.session.memory, "card", labelled, card_id)
 
 
 async def _product(ctx: ToolContext, card: dict) -> dict:
@@ -24,9 +30,10 @@ async def _product(ctx: ToolContext, card: dict) -> dict:
 
 
 @REGISTRY.tool("get_card_summary",
-               "Credit card statement: statement balance, minimum amount due, due date, credit limit and available limit.")
-async def get_card_summary(ctx: ToolContext) -> ToolResult:
-    c = await _card(ctx)
+               "Credit card statement: statement balance, minimum amount due, due date, credit limit and available limit.",
+               params=CARD_ID)
+async def get_card_summary(ctx: ToolContext, card_id: str = "") -> ToolResult:
+    c = await _card(ctx, card_id)
     product = await _product(ctx, c)
     policy = product["policy"]
     rule = policy["rules"]["min_due"]
@@ -43,9 +50,9 @@ async def get_card_summary(ctx: ToolContext) -> ToolResult:
 
 @REGISTRY.tool("get_card_transactions",
                "Recent card transactions, optionally filtered by merchant name. Flags likely duplicate charges.",
-               params={"merchant": {"type": "string", "description": "Part of a merchant name to filter by"}})
-async def get_card_transactions(ctx: ToolContext, merchant: str = "") -> ToolResult:
-    c = await _card(ctx)
+               params={"merchant": {"type": "string", "description": "Part of a merchant name to filter by"}, **CARD_ID})
+async def get_card_transactions(ctx: ToolContext, merchant: str = "", card_id: str = "") -> ToolResult:
+    c = await _card(ctx, card_id)
     txns = await ctx.connectors["cards"].get(f"/cards/{c['id']}/transactions", trace=ctx.trace)
     if merchant:
         txns = [t for t in txns if merchant.lower() in t["merchant"].lower()]
@@ -60,7 +67,7 @@ async def get_card_transactions(ctx: ToolContext, merchant: str = "") -> ToolRes
                       "amount": inr(t["amount"]), "status": t["status"],
                       **({"possible_duplicate_of": dup_of} if dup_of else {})})
     items.reverse()
-    data = {"ok": True, "card": f"ending {c['last4']}", "count": len(items), "transactions": items[:20]}
+    data = {"ok": True, "card": c["label"], "count": len(items), "transactions": items[:20]}
     return ToolResult(data, card={"type": "card_txns", "data": data})
 
 
@@ -70,9 +77,14 @@ async def get_card_transactions(ctx: ToolContext, merchant: str = "") -> ToolRes
                        "reason": {"type": "string", "description": "Why, in the customer's words (e.g. charged twice)"}},
                required=["transaction_id", "reason"], side_effect="write")
 async def propose_card_dispute(ctx: ToolContext, transaction_id: str, reason: str) -> ToolResult:
-    c = await _card(ctx)
+    tid = transaction_id.strip().upper()
+    cards = await ctx.connectors["cards"].get(f"/customers/{ctx.customer_id}/cards", trace=ctx.trace)
+    c = next((k for k in cards if tid.startswith(f"T-{k['id'][5:]}-")), None)          # IDs carry the card
+    if c is None:
+        return ToolResult({"ok": False, "error": "No such transaction on this customer's cards."})
+    c["label"] = f"{c.get('product_short_name') or c['product']} ending {c['last4']}"
     txns = await ctx.connectors["cards"].get(f"/cards/{c['id']}/transactions", trace=ctx.trace)
-    t = next((x for x in txns if x["id"] == transaction_id.strip().upper()), None)
+    t = next((x for x in txns if x["id"] == tid), None)
     if t is None:
         return ToolResult({"ok": False, "error": "No such transaction on this customer's card."})
     policy = (await _product(ctx, c))["policy"]

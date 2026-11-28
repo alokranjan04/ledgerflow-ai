@@ -267,18 +267,31 @@ async def api_language(request):
     return web.json_response({"ok": True, "language": s.language})
 
 
-async def _direct_tool(request, s, name: str):
+async def _direct_tool(request, s, name: str, args: dict | None = None):
     ctx = ToolContext(s, request.app[K.CONNECTORS], request.app[K.ACTIONS], Trace(), config.AS_OF)
-    return await REGISTRY.run(name, {}, ctx, [name])
+    return await REGISTRY.run(name, args or {}, ctx, [name])
 
 
 async def api_account(request):
+    """Every loan and card the customer holds (the panel lists them all). Reading them does not change
+    which account the conversation is about."""
     s = await _session(request)
-    loan, card = await asyncio.gather(_direct_tool(request, s, "get_loan_summary"),
-                                      _direct_tool(request, s, "get_card_summary"))
+    remembered = {k: s.memory.get(k) for k in ("current_loan", "current_card")}
+    held = await _direct_tool(request, s, "list_accounts")
+    loans = [x["loan_id"] for x in held.data.get("loans", []) if x.get("status") == "active"]
+    cards = [x["card_id"] for x in held.data.get("cards", [])]
+    results = await asyncio.gather(*[_direct_tool(request, s, "get_loan_summary", {"loan_id": i}) for i in loans],
+                                   *[_direct_tool(request, s, "get_card_summary", {"card_id": i}) for i in cards])
+    for k, v in remembered.items():
+        if v is None:
+            s.memory.pop(k, None)
+        else:
+            s.memory[k] = v
+    loan_rows = [r.data for r in results[:len(loans)] if r.data.get("ok")]
+    card_rows = [r.data for r in results[len(loans):] if r.data.get("ok")]
     return web.json_response({"customer_name": s.customer_name, "workflow": s.workflow_id,
-                              "loan": loan.data if loan.data.get("ok") else None,
-                              "card": card.data if card.data.get("ok") else None})
+                              "loans": loan_rows, "cards": card_rows,
+                              "loan": loan_rows[0] if loan_rows else None, "card": card_rows[0] if card_rows else None})
 
 
 async def api_activity(request):

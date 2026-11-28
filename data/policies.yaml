@@ -23,11 +23,15 @@
 #   finance_charge    monthly_pct, clause
 #   dispute           window_days, temporary_credit_working_days, clause
 #
+# short_name (optional for loans, required for cards) is how the assistant names the account:
+# "your Home loan L-10010", "your Rewards card ending 7781".
+#
 # Every `clause` must name a clause of the same product. GST is 18% (tax law, not policy).
 
 products:
   PL-FLOAT:
     name: Personal Loan (floating rate, EBLR-linked)
+    short_name: Personal loan
     kind: loan
     rate_type: floating
     policy:
@@ -75,6 +79,7 @@ products:
 
   PL-FIX:
     name: Personal Loan (fixed rate)
+    short_name: Personal loan
     kind: loan
     rate_type: fixed
     policy:
@@ -116,6 +121,94 @@ products:
           A failed EMI debit caused by insufficient funds or a cancelled mandate attracts a bounce charge of Rs
           500 plus GST.
 
+  HL-FLOAT:
+    name: Home Loan (floating rate, repo-linked)
+    short_name: Home loan
+    kind: loan
+    rate_type: floating
+    policy:
+      version: "2026.09"
+      effective: "2026-09-01"
+      rules:
+        foreclosure:
+          min_emis_paid: 0
+          charge_pct: 0
+          clause: HL-FL-6.1
+        part_prepayment:
+          min_emis_paid: 0
+          min_amount: 25000
+          max_pct_outstanding_per_fy: 100
+          charge_pct: 0
+          clause: HL-FL-6.2
+        rate_reset:
+          benchmark: RBI repo rate (External Benchmark Lending Rate)
+          frequency: quarterly
+          clause: HL-FL-3.2
+        bounce_charge:
+          amount: 750
+          gst: true
+          clause: HL-FL-8.1
+        emi_date_change:
+          allowed_days: [5, 10, 15]
+          max_per_year: 1
+          clause: HL-FL-4.1
+      clauses:
+        HL-FL-3.2: >-
+          The home loan rate is the RBI repo rate plus a fixed spread, reset every quarter. When it changes, the
+          EMI is recalculated over the remaining tenure from the next instalment.
+        HL-FL-4.1: >-
+          The EMI date can be moved to the 5th, 10th or 15th of the month, once a year.
+        HL-FL-6.1: >-
+          Floating-rate home loans to individuals carry no foreclosure or prepayment charge, at any time.
+        HL-FL-6.2: >-
+          Part-prepayment of at least Rs 25,000 is allowed at any time with no charge. The customer chooses to
+          reduce the tenure or the EMI.
+        HL-FL-8.1: >-
+          A failed EMI debit caused by insufficient funds or a cancelled mandate attracts a charge of Rs 750 plus GST.
+
+  AL-FIX:
+    name: Car Loan (fixed rate)
+    short_name: Car loan
+    kind: loan
+    rate_type: fixed
+    policy:
+      version: "2026.06"
+      effective: "2026-06-01"
+      rules:
+        foreclosure:
+          lock_in_emis: 6
+          charge_pct_until_24m: 5
+          charge_pct_after_24m: 3
+          clause_lock_in: AL-FX-6.1
+          clause: AL-FX-6.2
+        part_prepayment:
+          min_emis_paid: 12
+          min_amount: 25000
+          max_pct_outstanding_per_fy: 25
+          charge_pct: 3
+          clause: AL-FX-6.3
+        bounce_charge:
+          amount: 600
+          gst: true
+          clause: AL-FX-7.1
+        emi_date_change:
+          allowed_days: [5, 10]
+          max_per_year: 1
+          clause: AL-FX-4.1
+      clauses:
+        AL-FX-4.1: >-
+          The EMI date can be moved to the 5th or 10th of the month, once a year.
+        AL-FX-6.1: >-
+          The car loan cannot be foreclosed until 6 EMIs have been paid.
+        AL-FX-6.2: >-
+          After 6 EMIs, foreclosure costs 5% of the outstanding principal plus GST in the first 24 months from
+          disbursal, and 3% plus GST after that. The vehicle's hypothecation is released after closure.
+        AL-FX-6.3: >-
+          After 12 EMIs, part-prepayment of at least Rs 25,000 and up to 25% of the outstanding principal per
+          financial year is allowed, with a 3% charge plus GST on the amount prepaid.
+        AL-FX-7.1: >-
+          A failed EMI debit caused by insufficient funds or a cancelled mandate attracts a charge of Rs 600 plus GST.
+
   CC-PLAT:
     name: LedgerFlow Platinum Credit Card
     short_name: Platinum card
@@ -145,3 +238,32 @@ products:
         CC-PL-9.2: >-
           Transactions can be disputed within 60 days of the transaction date. A temporary credit is given within
           10 working days while the dispute is investigated.
+
+  CC-REW:
+    name: LedgerFlow Rewards Credit Card
+    short_name: Rewards card
+    kind: card
+    policy:
+      version: "2026.08"
+      effective: "2026-08-01"
+      rules:
+        min_due:
+          pct: 5
+          floor: 100
+          clause: CR-4.1
+        finance_charge:
+          monthly_pct: 3.75
+          clause: CR-4.2
+        dispute:
+          window_days: 45
+          temporary_credit_working_days: 7
+          clause: CR-9.1
+      clauses:
+        CR-4.1: >-
+          The minimum amount due is 5% of the statement balance or Rs 100, whichever is higher, plus any overdue amount.
+        CR-4.2: >-
+          Paying less than the total amount due attracts finance charges at 3.75% per month on the unpaid balance
+          from the transaction date.
+        CR-9.1: >-
+          Transactions can be disputed within 45 days of the transaction date. A temporary credit is given within
+          7 working days while the dispute is investigated.

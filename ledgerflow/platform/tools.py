@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
+from ledgerflow.platform.accounts import NeedsChoice
 from ledgerflow.platform.connectors import ConnectorError, ConnectorRegistry
 from ledgerflow.platform.sessions import Session
 from ledgerflow.platform.telemetry import METRICS, Trace
@@ -115,6 +116,10 @@ class ToolRegistry:
             ok = False
             res = ToolResult({"ok": False, "unavailable": e.system, "error_kind": e.kind,
                               "error": f"The {e.system} system is not responding right now."})
+        except NeedsChoice as e:                 # several accounts fit: the customer chooses, nothing is guessed
+            METRICS.incr("tool.needs_account_choice")
+            data = e.result()
+            res = ToolResult(data, card={"type": "choose_account", "data": data})
         except PermissionError as e:
             ok = False
             res = ToolResult({"ok": False, "error": str(e)})
